@@ -45,6 +45,10 @@
     .rail .search-btn .emoji{font-size:26px; line-height:1}
     .rail .search-btn .label{font-size:13px; opacity:.9}
     .rail .search-btn:hover{border-color:#35519b; background:linear-gradient(180deg, rgba(61,118,210,.95) 0%, rgba(35,58,120,.97) 100%)}
+    .rail .save-btn{width:100%; min-height:74px; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer; border:1px solid #1b2a57; background:linear-gradient(180deg, rgba(40,72,130,.9) 0%, rgba(22,38,82,.95) 100%); color:var(--ink); font-weight:600; letter-spacing:.03em; font-size:16px; padding:8px 6px; text-transform:uppercase}
+    .rail .save-btn .emoji{font-size:24px; line-height:1}
+    .rail .save-btn .label{font-size:12px; opacity:.88}
+    .rail .save-btn:hover{border-color:#3c59a8; background:linear-gradient(180deg, rgba(72,118,198,.95) 0%, rgba(34,56,120,.97) 100%)}
     .rail .icon{width:100%; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:1px solid transparent; font-size:18px}
     .rail .icon:hover{background:#0f1b3a; border-color:#1e2d60}
     .rail .icon[aria-current="page"]{background:#16224a; border-color:#2a3d7a}
@@ -188,8 +192,13 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 .search-hit-title{font-weight:600; font-size:15px}
 .search-hit-snippet{font-size:13px; color:#c4ccf5; line-height:1.45}
 .search-hit-meta{font-size:12px; color:var(--muted)}
-.search-hit mark{background:rgba(93,169,255,.25); color:inherit; padding:0 2px; border-radius:4px}
-.search-focus{outline:2px solid var(--accent); box-shadow:0 0 0 6px rgba(93,169,255,.18); border-radius:16px; animation:searchPulse .9s ease}
+    .search-hit mark{background:rgba(93,169,255,.25); color:inherit; padding:0 2px; border-radius:4px}
+    .search-focus{outline:2px solid var(--accent); box-shadow:0 0 0 6px rgba(93,169,255,.18); border-radius:16px; animation:searchPulse .9s ease}
+
+    .toast-container{position:fixed; left:50%; bottom:26px; transform:translateX(-50%); display:flex; flex-direction:column; gap:10px; align-items:center; pointer-events:none; z-index:120}
+    .toast{background:rgba(12,23,52,.94); color:var(--ink); border:1px solid rgba(53,81,155,.45); padding:10px 16px; border-radius:12px; box-shadow:0 10px 32px rgba(0,0,0,.45); opacity:0; transform:translateY(12px); transition:opacity .25s ease, transform .25s ease}
+    .toast.visible{opacity:1; transform:translateY(0)}
+    .toast.hide{opacity:0; transform:translateY(12px)}
 
 @keyframes searchPulse{
   from{box-shadow:0 0 0 0 rgba(93,169,255,.35); opacity:1}
@@ -208,6 +217,10 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       <button class="search-btn" id="railSearch" type="button" aria-label="Search modules and references">
         <span class="emoji">🔍</span>
         <span class="label">Search</span>
+      </button>
+      <button class="save-btn" id="railSaveAs" type="button" aria-label="Save a copy of this manual">
+        <span class="emoji">💾</span>
+        <span class="label">Save As</span>
       </button>
       <button class="icon" id="railLibrary" title="Library" aria-current="page" type="button" aria-label="Library">📚</button>
       <button class="icon" id="railEdit" title="Edit" type="button" aria-pressed="false" aria-label="Toggle edit">✏️</button>
@@ -309,6 +322,8 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     <div class="search-results" id="searchResults" role="list"></div>
   </div>
 
+  <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
   <div class="toc-backdrop" id="tocBackdrop" aria-hidden="true"></div>
 
   <script>
@@ -318,6 +333,107 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const $=(s,c=document)=>c.querySelector(s);
     const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
     const byId=(id)=>document.getElementById(id);
+
+    const mainEl=document.querySelector('main');
+    const AUTO_SAVE_KEY='um_auto_save_v1';
+    const AUTO_SAVE_INTERVAL=15000;
+    let autoSaveTimer=null;
+    let autoSaveMetaPending=null;
+    let isDirty=false;
+    let autoSaveErrorShown=false;
+
+    function showToast(message, opts){
+      const container=byId('toastContainer');
+      if(!container || !message) return;
+      const toast=document.createElement('div');
+      toast.className='toast';
+      toast.setAttribute('role','status');
+      toast.textContent=message;
+      container.appendChild(toast);
+      requestAnimationFrame(()=> toast.classList.add('visible'));
+      const duration=(opts&&opts.duration)||2400;
+      setTimeout(()=>{
+        toast.classList.add('hide');
+        setTimeout(()=> toast.remove(), 280);
+      }, duration);
+    }
+
+    function formatSaveTime(ts){
+      try{
+        return new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      }catch(e){
+        return '';
+      }
+    }
+
+    function buildSnapshot(){
+      if(!mainEl) return null;
+      return {
+        main: mainEl.innerHTML,
+        timestamp: Date.now(),
+        meta: {
+          filtersCollapsed: !!(document.getElementById('filters')?.classList.contains('collapsed')),
+          searchTerm: document.getElementById('searchInput')?.value || ''
+        }
+      };
+    }
+
+    function performAutoSave(mode='auto'){
+      const snapshot=buildSnapshot();
+      if(!snapshot) return;
+      try{
+        localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(snapshot));
+        isDirty=false;
+        autoSaveErrorShown=false;
+        if(mode!=='silent'){
+          const label=mode==='manual'? 'Saved' : 'Auto-saved';
+          const when=formatSaveTime(snapshot.timestamp);
+          showToast(when ? `${label} at ${when}` : label);
+        }
+      }catch(e){
+        if(mode==='auto'){
+          if(!autoSaveErrorShown){
+            showToast('Unable to auto-save changes');
+            autoSaveErrorShown=true;
+          }
+        }else if(mode!=='silent'){
+          showToast('Unable to save changes');
+        }
+      }
+    }
+
+    function startAutoSave(){
+      if(autoSaveTimer) clearInterval(autoSaveTimer);
+      autoSaveTimer=setInterval(()=>{
+        if(!isDirty) return;
+        performAutoSave('auto');
+      }, AUTO_SAVE_INTERVAL);
+    }
+
+    function markDirty(){ isDirty=true; }
+    window.flagManualChange = markDirty;
+
+    function tryRestoreAutoSave(){
+      if(!mainEl) return;
+      let raw=null;
+      try{ raw=localStorage.getItem(AUTO_SAVE_KEY); }
+      catch(e){ raw=null; }
+      if(!raw) return;
+      let data=null;
+      try{ data=JSON.parse(raw); }
+      catch(e){ data=null; }
+      if(!data || typeof data.main!=='string' || !data.main) return;
+      mainEl.innerHTML=data.main;
+      autoSaveMetaPending=data.meta||null;
+      isDirty=false;
+      queueMicrotask(()=> showToast('Restored auto-saved content', {duration:2800}));
+    }
+
+    function sanitizeFileName(name){
+      return (name||'').replace(/[\\/:*?"<>|]/g,'_');
+    }
+
+    tryRestoreAutoSave();
 
     const aside=byId('aside');
     const tocBackdrop=byId('tocBackdrop');
@@ -333,12 +449,36 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const btnToggleRefs=byId('btnToggleRefs');
     const refList=byId('refList');
     const btnSearch=byId('railSearch');
+    const btnSaveAs=byId('railSaveAs');
     const searchDrawer=byId('searchDrawer');
     const searchBackdrop=byId('searchBackdrop');
     const searchInput=byId('searchInput');
     const searchMeta=byId('searchMeta');
     const searchResults=byId('searchResults');
     const searchClose=byId('searchClose');
+
+    if(autoSaveMetaPending){
+      if(typeof autoSaveMetaPending.filtersCollapsed==='boolean' && filtersEl){
+        filtersEl.classList.toggle('collapsed', autoSaveMetaPending.filtersCollapsed);
+        if(btnToggleFilters) btnToggleFilters.setAttribute('aria-expanded', String(!autoSaveMetaPending.filtersCollapsed));
+      }
+      if(searchInput){
+        searchInput.value = autoSaveMetaPending.searchTerm || '';
+        runSearch();
+      }
+      autoSaveMetaPending=null;
+    }
+
+    document.addEventListener('input', (e)=>{
+      if(mainEl && mainEl.contains(e.target)){ markDirty(); }
+    }, true);
+
+    if(mainEl && 'MutationObserver' in window){
+      const observer=new MutationObserver((mutations)=>{
+        if(mutations.some(m=>m.type==='childList')){ markDirty(); }
+      });
+      observer.observe(mainEl, {subtree:true, childList:true});
+    }
 
     function getLevelChips(){ return $$('#levelChips .chip'); }
     function getRegChips(){ return $$('#regChips .chip'); }
@@ -808,6 +948,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         if(sub && confirm('Delete this subsection?')){
           sub.remove();
           numberSubs(); buildToc();
+          markDirty();
         }
         return;
       }
@@ -819,6 +960,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
             sec.remove();
             render();
             buildRefList();
+            markDirty();
           }
           return;
         }
@@ -829,6 +971,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
     // Editing mode
     let isEditing=false;
+    window.isEditing = isEditing;
     function applyEditable(scope=document){
       const editable = isEditing ? 'true' : 'false';
       ['h2 .h2-title','h3 .title','p','li','figcaption'].forEach(sel=>{
@@ -837,6 +980,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     }
     function setEditing(on){
       isEditing=!!on;
+      window.isEditing = isEditing;
       document.body.classList.toggle('editing', isEditing);
       byId('railEdit').setAttribute('aria-pressed', String(isEditing));
       applyEditable(document);
@@ -846,17 +990,45 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     byId('railEdit').addEventListener('click', ()=> setEditing(!isEditing));
     byId('railPrint').addEventListener('click', ()=> window.print());
     byId('railLibrary').addEventListener('click', ()=> { window.scrollTo({top:0, behavior:'smooth'}); });
+    if(btnSaveAs){
+      btnSaveAs.addEventListener('click', ()=>{
+        performAutoSave('silent');
+        const suggested = sanitizeFileName((document.title||'manual') + '.html') || 'manual.html';
+        let name = prompt('Save copy as:', suggested);
+        if(name===null) return;
+        name = sanitizeFileName(name.trim()) || suggested;
+        if(!name.toLowerCase().endsWith('.html')) name += '.html';
+        try{
+          const blob = new Blob(['<!DOCTYPE html>\n' + document.documentElement.outerHTML], {type:'text/html'});
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = name;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(()=>{
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 0);
+          showToast(`Saved copy as ${name}`, {duration:2600});
+        }catch(e){
+          showToast('Save As failed');
+        }
+      });
+    }
     byId('railRevisions').addEventListener('click', ()=> { // Revisions panel opener
 (function(){ const d=document.getElementById('revDrawer'); if(d){ d.style.right='0'; if(window.renderRevList) renderRevList(); } })(); });
     byId('railSettings').addEventListener('click', ()=> {
       const collapsed = filtersEl.classList.toggle('collapsed');
       btnToggleFilters.setAttribute('aria-expanded', String(!collapsed));
+      markDirty();
     });
 
     // Top bar buttons
     btnToggleFilters.addEventListener('click', ()=>{
       const collapsed = filtersEl.classList.toggle('collapsed');
       btnToggleFilters.setAttribute('aria-expanded', String(!collapsed));
+      markDirty();
     });
 
     // Insert helpers
@@ -901,6 +1073,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       buildToc();
       buildRefList();
       refreshSearchIfActive();
+      markDirty();
       block.scrollIntoView({behavior:'smooth', block:'center'});
     }
 
@@ -925,6 +1098,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       render();
       buildRefList();
       refreshSearchIfActive();
+      markDirty();
       article.scrollIntoView({behavior:'smooth', block:'center'});
     }
 
@@ -951,7 +1125,17 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       const go = e.target.closest('.go');
       if(go){ const id = go.dataset.refid; const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]'); if(mark){ mark.scrollIntoView({behavior:'smooth', block:'center'}); mark.classList.add('flash'); setTimeout(()=> mark.classList.remove('flash'), 800);} return; }
       const del = e.target.closest('#refList .del');
-      if(del){ const id = del.dataset.refid; const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]'); if(mark && confirm('Remove this reference mark?')){ unwrap(mark); buildRefList(); buildToc(); } return; }
+      if(del){
+        const id = del.dataset.refid;
+        const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]');
+        if(mark && confirm('Remove this reference mark?')){
+          unwrap(mark);
+          buildRefList();
+          buildToc();
+          markDirty();
+        }
+        return;
+      }
     });
 
     // Numbering like 1.1, 1.2 … using the visible order
@@ -1015,6 +1199,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       numberSubs();
       buildToc();
       buildRefList();
+      markDirty();
     });
 
     // === DELETE CONTROLS ===
@@ -1058,6 +1243,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         if(sub && confirm('Delete this subsection?')){
           sub.remove();
           numberSubs(); buildToc();
+          markDirty();
         }
         return;
       }
@@ -1069,6 +1255,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           sec.remove();
           render();
           buildRefList();
+          markDirty();
         }
         return;
       }
@@ -1081,6 +1268,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           numberSubs();
           buildToc();
           buildRefList();
+          markDirty();
         }
         return;
       }
@@ -1091,6 +1279,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           sec.remove();
           render();
           buildRefList();
+          markDirty();
         }
         return;
       }
@@ -1100,6 +1289,10 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     setEditing(true); // start in editing so you can type right away
     render();
     buildRefList();
+    startAutoSave();
+    window.addEventListener('beforeunload', ()=>{
+      if(isDirty) performAutoSave('silent');
+    });
   })();
   </script>
 
