@@ -3,7 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Universal Manual Template — Nested Sections + Drag (Delete Enabled)</title>
+  <title>Universal Manual Template — References V16 (Refs Drawer)</title>
+  <script>
+    (function () {
+      function deriveFilenameTitle() {
+        var path = window.location && window.location.pathname ? window.location.pathname : "";
+        if (!path) return null;
+        var fileName = decodeURIComponent(path.split("/").pop() || "");
+        if (!fileName) return null;
+        var withoutExtension = fileName.replace(/\.[^.]*$/, "");
+        return withoutExtension || fileName;
+      }
+
+      var resolvedTitle = deriveFilenameTitle();
+      if (!resolvedTitle) return;
+
+      document.title = resolvedTitle;
+
+      function applyHeadingTitle() {
+        var headerTitle = document.querySelector(".title[data-sync-filename]");
+        if (headerTitle) {
+          headerTitle.textContent = resolvedTitle;
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", applyHeadingTitle, { once: true });
+      } else {
+        applyHeadingTitle();
+      }
+    })();
+  </script>
   <style>
     :root{ --bg:#0b1020; --panel:#121a33; --ink:#e7ecff; --muted:#a7b0d6; --line:#22305a; --accent:#5da9ff; --shadow:0 8px 24px rgba(0,0,0,.35); --aside-w:260px; --rail-w:64px }
     *{box-sizing:border-box}
@@ -159,7 +189,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       <header>
         <div class="bar">
           <button class="btn" id="btnToc" title="Toggle contents" type="button" aria-expanded="false">☰</button>
-          <div class="title">Universal Manual Template — Levels & Regulations</div>
+          <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
             <select id="targetContainer" class="select" title="Insert into">
               <option value="sec-level-1" selected>Insert into: Level 1</option>
