@@ -3,7 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Universal Manual Template — Nested Sections + Drag (Delete Enabled)</title>
+  <title>Universal Manual Template — References V16 (Refs Drawer)</title>
+  <script>
+    (function () {
+      function deriveFilenameTitle() {
+        var path = window.location && window.location.pathname ? window.location.pathname : "";
+        if (!path) return null;
+        var fileName = decodeURIComponent(path.split("/").pop() || "");
+        if (!fileName) return null;
+        var withoutExtension = fileName.replace(/\.[^.]*$/, "");
+        return withoutExtension || fileName;
+      }
+
+      var resolvedTitle = deriveFilenameTitle();
+      if (!resolvedTitle) return;
+
+      document.title = resolvedTitle;
+
+      function applyHeadingTitle() {
+        var headerTitle = document.querySelector(".title[data-sync-filename]");
+        if (headerTitle) {
+          headerTitle.textContent = resolvedTitle;
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", applyHeadingTitle, { once: true });
+      } else {
+        applyHeadingTitle();
+      }
+    })();
+  </script>
   <style>
     :root{ --bg:#0b1020; --panel:#121a33; --ink:#e7ecff; --muted:#a7b0d6; --line:#22305a; --accent:#5da9ff; --shadow:0 8px 24px rgba(0,0,0,.35); --aside-w:260px; --rail-w:64px }
     *{box-sizing:border-box}
@@ -17,9 +47,12 @@
     aside{background:var(--panel); border-right:1px solid var(--line); padding:10px; position:sticky; top:0; height:100vh; overflow:auto}
     aside h3{margin:6px 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
     #toc a{display:block; padding:6px 8px; border-radius:8px; color:var(--ink); text-decoration:none; opacity:.9}
-    #toc .toc-row{display:flex; align-items:center; justify-content:space-between; gap:8px}
-    #toc .toc-del{display:none; padding:2px 6px; border-radius:8px; font-size:12px; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer}
-    .editing #toc .toc-del{display:inline-flex}
+    #toc .toc-row{display:flex; align-items:center; gap:8px}
+    #toc .toc-row a{flex:1}
+    #toc .toc-actions{display:flex; gap:6px; align-items:center}
+    #toc .toc-action{display:none; padding:2px 6px; border-radius:8px; font-size:12px; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer}
+    #toc .toc-action:hover{border-color:#35519b}
+    .editing #toc .toc-action{display:inline-flex}
     #toc a:hover{background:#16224a}
     #toc .empty{color:var(--muted); font-size:13px}
     #toc .toc-sub a{font-size:13px; padding-left:20px; opacity:.85}
@@ -120,9 +153,6 @@
 
 
 /* Hide legacy top-bar reference controls (moved to drawer) */
-#btnAddRef, #btnToggleRefs { display: none !important; }
-
-
 /* Hide aside's References section to avoid duplication (managed via drawer now) */
 aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
@@ -159,19 +189,9 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       <header>
         <div class="bar">
           <button class="btn" id="btnToc" title="Toggle contents" type="button" aria-expanded="false">☰</button>
-          <div class="title">Universal Manual Template — Levels & Regulations</div>
+          <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
-            <select id="targetContainer" class="select" title="Insert into">
-              <option value="sec-level-1" selected>Insert into: Level 1</option>
-              <option value="sec-level-2">Insert into: Level 2</option>
-              <option value="sec-level-3">Insert into: Level 3</option>
-              <option value="sec-easa">Insert into: EASA Regulations</option>
-              <option value="sec-gcaa">Insert into: GCAA Regulations</option>
-            </select>
-            <button class="btn" id="btnAddSub" type="button" title="Add subsection (H3 under selected)">+ Subsection</button>
             <button class="btn" id="btnAddTop" type="button" title="Add top-level section (new block)">+ Top-level</button>
-            <button class="btn" id="btnAddRef" type="button" title="Add reference to selected text">+ Ref</button>
-            <button class="btn" id="btnToggleRefs" type="button" aria-pressed="true" title="Show/Hide inline ref marks">Refs: ON</button>
             <button class="btn" id="btnToggleFilters" type="button" aria-expanded="true" title="Show/Hide filters">Filters</button>
           </div>
         </div>
@@ -253,8 +273,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const toc=byId('toc');
     const filtersEl=byId('filters');
     const btnToggleFilters=byId('btnToggleFilters');
-    const targetContainer=byId('targetContainer');
-    const btnAddSub=byId('btnAddSub');
     const btnAddTop=byId('btnAddTop');
     const btnAddRef=byId('btnAddRef');
     const btnToggleRefs=byId('btnToggleRefs');
@@ -391,7 +409,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       numberSubs();
       buildToc();
       buildRefList();
-      refreshTargetDropdown();
       ensureDeleteButtons();
     }
 
@@ -408,11 +425,23 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         a.href=`#${sec.id}`;
         const title=$('.h2-title',sec)?.textContent?.trim()||$('h2',sec)?.textContent?.trim()||'Untitled';
         a.textContent=title;
+        const actions=document.createElement('div');
+        actions.className='toc-actions';
+        const addSub=document.createElement('button');
+        addSub.className='toc-action toc-add-sub';
+        addSub.type='button';
+        addSub.title='Add subsection';
+        addSub.setAttribute('aria-label','Add subsection');
+        addSub.textContent='+';
+        addSub.dataset.targetId=sec.id;
         const delS=document.createElement('button');
-        delS.className='toc-del toc-del-sec';
+        delS.className='toc-action toc-del toc-del-sec';
         delS.type='button'; delS.title='Delete section'; delS.textContent='🗑️';
         delS.dataset.targetId=sec.id;
-        row.appendChild(a); row.appendChild(delS);
+        actions.appendChild(addSub);
+        actions.appendChild(delS);
+        row.appendChild(a);
+        row.appendChild(actions);
         wrap.appendChild(row);
         // subsections
         const subs=$$('.subsection', sec);
@@ -427,11 +456,14 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
             const st=$('.num', s)?.textContent ? `${$('.num', s).textContent} ${$('h3 span.title', s)?.textContent?.trim()||'Subsection'}`
                                                : $('h3 span.title', s)?.textContent?.trim()||'Subsection';
             sa.textContent=st;
+            const subActions=document.createElement('div');
+            subActions.className='toc-actions';
             const delSub=document.createElement('button');
-            delSub.className='toc-del toc-del-sub';
+            delSub.className='toc-action toc-del toc-del-sub';
             delSub.type='button'; delSub.title='Delete subsection'; delSub.textContent='🗑️';
             delSub.dataset.targetId=s.id;
-            srow.appendChild(sa); srow.appendChild(delSub);
+            subActions.appendChild(delSub);
+            srow.appendChild(sa); srow.appendChild(subActions);
             subWrap.appendChild(srow);
           });
           wrap.appendChild(subWrap);
@@ -454,27 +486,34 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
     // Delegation for chips
     document.addEventListener('click', (e)=>{
+      const ta = e.target.closest('.toc-add-sub');
+      if(ta){
+        if(!isEditing) return;
+        const tid = ta.dataset.targetId;
+        if(tid) addSubsection(tid);
+        return;
+      }
       const td = e.target.closest('.toc-del-sub');
       if(td){
         const tid = td.dataset.targetId;
         const sub = document.getElementById(tid);
         if(sub && confirm('Delete this subsection?')){
           sub.remove();
-          numberSubs(); buildToc(); refreshTargetDropdown();
+          numberSubs(); buildToc();
         }
         return;
       }
-      const ts = e.target.closest('.toc-del-sec');
-      if(ts){
-        const tid = ts.dataset.targetId;
-        const sec = document.getElementById(tid);
-        if(sec && confirm('Delete this entire section and all its subsections?')){
-          sec.remove();
-          render();
-      buildRefList();
+        const ts = e.target.closest('.toc-del-sec');
+        if(ts){
+          const tid = ts.dataset.targetId;
+          const sec = document.getElementById(tid);
+          if(sec && confirm('Delete this entire section and all its subsections?')){
+            sec.remove();
+            render();
+            buildRefList();
+          }
+          return;
         }
-        return;
-      }
 
       const chip = e.target.closest('.chip');
       if(chip) toggleChip(chip);
@@ -493,7 +532,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       document.body.classList.toggle('editing', isEditing);
       byId('railEdit').setAttribute('aria-pressed', String(isEditing));
       applyEditable(document);
-      btnAddSub.disabled = !isEditing;
       btnAddTop.disabled = !isEditing;
       ensureDeleteButtons();
     }
@@ -580,24 +618,23 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       article.scrollIntoView({behavior:'smooth', block:'center'});
     }
 
-    btnAddSub.addEventListener('click', ()=>{
-      if(!isEditing) return;
-      addSubsection(targetContainer.value);
-    });
-
     btnAddTop.addEventListener('click', ()=>{
       if(!isEditing) return;
       addTopLevel();
     });
 
-    btnAddRef.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
-    btnAddRef.addEventListener('click', ()=>{ setTimeout(addReference, 0); });
-    btnToggleRefs.addEventListener('click', ()=>{
-      const pressed = btnToggleRefs.getAttribute('aria-pressed')==='true';
-      btnToggleRefs.setAttribute('aria-pressed', String(!pressed));
-      btnToggleRefs.textContent = pressed ? 'Refs: OFF' : 'Refs: ON';
-      document.body.classList.toggle('refs-off', pressed);
-    });
+    if(btnAddRef){
+      btnAddRef.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
+      btnAddRef.addEventListener('click', ()=>{ setTimeout(addReference, 0); });
+    }
+    if(btnToggleRefs){
+      btnToggleRefs.addEventListener('click', ()=>{
+        const pressed = btnToggleRefs.getAttribute('aria-pressed')==='true';
+        btnToggleRefs.setAttribute('aria-pressed', String(!pressed));
+        btnToggleRefs.textContent = pressed ? 'Refs: OFF' : 'Refs: ON';
+        document.body.classList.toggle('refs-off', pressed);
+      });
+    }
 
     // Delegation for Reference list actions
     document.addEventListener('click', (e)=>{
@@ -606,18 +643,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       const del = e.target.closest('#refList .del');
       if(del){ const id = del.dataset.refid; const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]'); if(mark && confirm('Remove this reference mark?')){ unwrap(mark); buildRefList(); buildToc(); } return; }
     });
-
-    function refreshTargetDropdown(){
-      const state=getState();
-      const ids = $$('.section').filter(sec=>sectionMatches(sec, state)).map(sec=>sec.id);
-      Array.from(targetContainer.options).forEach(opt=>{
-        opt.hidden = !ids.includes(opt.value);
-      });
-      if(!ids.includes(targetContainer.value)){
-        const fallback = ids.includes('sec-level-1') ? 'sec-level-1' : (ids[0]||'sec-level-1');
-        targetContainer.value = fallback || 'sec-level-1';
-      }
-    }
 
     // Numbering like 1.1, 1.2 … using the visible order
     function numberSubs(){
@@ -722,7 +747,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         const sub = document.getElementById(tid);
         if(sub && confirm('Delete this subsection?')){
           sub.remove();
-          numberSubs(); buildToc(); refreshTargetDropdown();
+          numberSubs(); buildToc();
         }
         return;
       }
@@ -733,7 +758,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         if(sec && confirm('Delete this entire section and all its subsections?')){
           sec.remove();
           render();
-      buildRefList();
+          buildRefList();
         }
         return;
       }
@@ -745,8 +770,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           sub.remove();
           numberSubs();
           buildToc();
-      buildRefList();
-          refreshTargetDropdown();
+          buildRefList();
         }
         return;
       }
@@ -754,12 +778,9 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       if(secBtn){
         const sec = secBtn.closest('.section');
         if(sec && confirm('Delete this entire section and all its subsections?')){
-          const toRemoveId = sec.id;
           sec.remove();
           render();
-      buildRefList();
-          // If removed section was selected in dropdown, render() already refreshes; fallback safety:
-          if(targetContainer.value === toRemoveId) refreshTargetDropdown();
+          buildRefList();
         }
         return;
       }
