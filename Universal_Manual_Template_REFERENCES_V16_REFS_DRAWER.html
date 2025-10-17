@@ -778,6 +778,24 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     }
 
     function render(){
+      const state=getState();
+      const sections=$$('.section');
+      let visible=0;
+      sections.forEach(sec=>{
+        const ok=sectionMatches(sec,state);
+        sec.style.display = ok? '' : 'none';
+        if(ok) visible++;
+      });
+      if(noMatch) noMatch.style.display=visible? 'none':'block';
+      if(metaLevels) metaLevels.textContent=`Levels: ${state.levels.join(', ')||'–'}`;
+      if(metaRegs) metaRegs.textContent=`Regulator${state.regs.length>1?'s':''}: ${state.regs.map(x=>x.toUpperCase()).join(' + ')||'–'}`;
+      numberSubs();
+      buildToc();
+      buildRefList();
+      ensureDeleteButtons();
+      refreshSearchIfActive();
+    }
+
     // References —— create, list, delete
     function getSelectionRange(){
       const sel = window.getSelection();
@@ -843,20 +861,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         `;
         refList.appendChild(item);
       });
-      refreshSearchIfActive();
-    }
-
-      const state=getState();
-      const sections=$$('.section');
-      let visible=0;
-      sections.forEach(sec=>{ const ok=sectionMatches(sec,state); sec.style.display = ok? '' : 'none'; if(ok) visible++; });
-      if(noMatch) noMatch.style.display=visible? 'none':'block';
-      if(metaLevels) metaLevels.textContent=`Levels: ${state.levels.join(', ')||'–'}`;
-      if(metaRegs) metaRegs.textContent=`Regulator${state.regs.length>1?'s':''}: ${state.regs.map(x=>x.toUpperCase()).join(' + ')||'–'}`;
-      numberSubs();
-      buildToc();
-      buildRefList();
-      ensureDeleteButtons();
       refreshSearchIfActive();
     }
 
