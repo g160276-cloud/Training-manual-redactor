@@ -153,9 +153,6 @@
 
 
 /* Hide legacy top-bar reference controls (moved to drawer) */
-#btnAddRef, #btnToggleRefs { display: none !important; }
-
-
 /* Hide aside's References section to avoid duplication (managed via drawer now) */
 aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
@@ -194,17 +191,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           <button class="btn" id="btnToc" title="Toggle contents" type="button" aria-expanded="false">☰</button>
           <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
-            <select id="targetContainer" class="select" title="Insert into">
-              <option value="sec-level-1" selected>Insert into: Level 1</option>
-              <option value="sec-level-2">Insert into: Level 2</option>
-              <option value="sec-level-3">Insert into: Level 3</option>
-              <option value="sec-easa">Insert into: EASA Regulations</option>
-              <option value="sec-gcaa">Insert into: GCAA Regulations</option>
-            </select>
-            <button class="btn" id="btnAddSub" type="button" title="Add subsection (H3 under selected)">+ Subsection</button>
             <button class="btn" id="btnAddTop" type="button" title="Add top-level section (new block)">+ Top-level</button>
-            <button class="btn" id="btnAddRef" type="button" title="Add reference to selected text">+ Ref</button>
-            <button class="btn" id="btnToggleRefs" type="button" aria-pressed="true" title="Show/Hide inline ref marks">Refs: ON</button>
             <button class="btn" id="btnToggleFilters" type="button" aria-expanded="true" title="Show/Hide filters">Filters</button>
           </div>
         </div>
@@ -286,8 +273,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const toc=byId('toc');
     const filtersEl=byId('filters');
     const btnToggleFilters=byId('btnToggleFilters');
-    const targetContainer=byId('targetContainer');
-    const btnAddSub=byId('btnAddSub');
     const btnAddTop=byId('btnAddTop');
     const btnAddRef=byId('btnAddRef');
     const btnToggleRefs=byId('btnToggleRefs');
@@ -424,7 +409,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       numberSubs();
       buildToc();
       buildRefList();
-      refreshTargetDropdown();
       ensureDeleteButtons();
     }
 
@@ -515,21 +499,21 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         const sub = document.getElementById(tid);
         if(sub && confirm('Delete this subsection?')){
           sub.remove();
-          numberSubs(); buildToc(); refreshTargetDropdown();
+          numberSubs(); buildToc();
         }
         return;
       }
-      const ts = e.target.closest('.toc-del-sec');
-      if(ts){
-        const tid = ts.dataset.targetId;
-        const sec = document.getElementById(tid);
-        if(sec && confirm('Delete this entire section and all its subsections?')){
-          sec.remove();
-          render();
-      buildRefList();
+        const ts = e.target.closest('.toc-del-sec');
+        if(ts){
+          const tid = ts.dataset.targetId;
+          const sec = document.getElementById(tid);
+          if(sec && confirm('Delete this entire section and all its subsections?')){
+            sec.remove();
+            render();
+            buildRefList();
+          }
+          return;
         }
-        return;
-      }
 
       const chip = e.target.closest('.chip');
       if(chip) toggleChip(chip);
@@ -548,7 +532,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       document.body.classList.toggle('editing', isEditing);
       byId('railEdit').setAttribute('aria-pressed', String(isEditing));
       applyEditable(document);
-      btnAddSub.disabled = !isEditing;
       btnAddTop.disabled = !isEditing;
       ensureDeleteButtons();
     }
@@ -635,24 +618,23 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       article.scrollIntoView({behavior:'smooth', block:'center'});
     }
 
-    btnAddSub.addEventListener('click', ()=>{
-      if(!isEditing) return;
-      addSubsection(targetContainer.value);
-    });
-
     btnAddTop.addEventListener('click', ()=>{
       if(!isEditing) return;
       addTopLevel();
     });
 
-    btnAddRef.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
-    btnAddRef.addEventListener('click', ()=>{ setTimeout(addReference, 0); });
-    btnToggleRefs.addEventListener('click', ()=>{
-      const pressed = btnToggleRefs.getAttribute('aria-pressed')==='true';
-      btnToggleRefs.setAttribute('aria-pressed', String(!pressed));
-      btnToggleRefs.textContent = pressed ? 'Refs: OFF' : 'Refs: ON';
-      document.body.classList.toggle('refs-off', pressed);
-    });
+    if(btnAddRef){
+      btnAddRef.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
+      btnAddRef.addEventListener('click', ()=>{ setTimeout(addReference, 0); });
+    }
+    if(btnToggleRefs){
+      btnToggleRefs.addEventListener('click', ()=>{
+        const pressed = btnToggleRefs.getAttribute('aria-pressed')==='true';
+        btnToggleRefs.setAttribute('aria-pressed', String(!pressed));
+        btnToggleRefs.textContent = pressed ? 'Refs: OFF' : 'Refs: ON';
+        document.body.classList.toggle('refs-off', pressed);
+      });
+    }
 
     // Delegation for Reference list actions
     document.addEventListener('click', (e)=>{
@@ -661,18 +643,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       const del = e.target.closest('#refList .del');
       if(del){ const id = del.dataset.refid; const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]'); if(mark && confirm('Remove this reference mark?')){ unwrap(mark); buildRefList(); buildToc(); } return; }
     });
-
-    function refreshTargetDropdown(){
-      const state=getState();
-      const ids = $$('.section').filter(sec=>sectionMatches(sec, state)).map(sec=>sec.id);
-      Array.from(targetContainer.options).forEach(opt=>{
-        opt.hidden = !ids.includes(opt.value);
-      });
-      if(!ids.includes(targetContainer.value)){
-        const fallback = ids.includes('sec-level-1') ? 'sec-level-1' : (ids[0]||'sec-level-1');
-        targetContainer.value = fallback || 'sec-level-1';
-      }
-    }
 
     // Numbering like 1.1, 1.2 … using the visible order
     function numberSubs(){
@@ -777,7 +747,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         const sub = document.getElementById(tid);
         if(sub && confirm('Delete this subsection?')){
           sub.remove();
-          numberSubs(); buildToc(); refreshTargetDropdown();
+          numberSubs(); buildToc();
         }
         return;
       }
@@ -788,7 +758,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         if(sec && confirm('Delete this entire section and all its subsections?')){
           sec.remove();
           render();
-      buildRefList();
+          buildRefList();
         }
         return;
       }
@@ -800,8 +770,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           sub.remove();
           numberSubs();
           buildToc();
-      buildRefList();
-          refreshTargetDropdown();
+          buildRefList();
         }
         return;
       }
@@ -809,12 +778,9 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       if(secBtn){
         const sec = secBtn.closest('.section');
         if(sec && confirm('Delete this entire section and all its subsections?')){
-          const toRemoveId = sec.id;
           sec.remove();
           render();
-      buildRefList();
-          // If removed section was selected in dropdown, render() already refreshes; fallback safety:
-          if(targetContainer.value === toRemoveId) refreshTargetDropdown();
+          buildRefList();
         }
         return;
       }
