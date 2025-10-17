@@ -3,7 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Universal Manual Template — Nested Sections + Drag (Delete Enabled)</title>
+  <title>Universal Manual Template — References V16 (Refs Drawer)</title>
+  <script>
+    (function () {
+      function deriveFilenameTitle() {
+        var path = window.location && window.location.pathname ? window.location.pathname : "";
+        if (!path) return null;
+        var fileName = decodeURIComponent(path.split("/").pop() || "");
+        if (!fileName) return null;
+        var withoutExtension = fileName.replace(/\.[^.]*$/, "");
+        return withoutExtension || fileName;
+      }
+
+      var resolvedTitle = deriveFilenameTitle();
+      if (!resolvedTitle) return;
+
+      document.title = resolvedTitle;
+
+      function applyHeadingTitle() {
+        var headerTitle = document.querySelector(".title[data-sync-filename]");
+        if (headerTitle) {
+          headerTitle.textContent = resolvedTitle;
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", applyHeadingTitle, { once: true });
+      } else {
+        applyHeadingTitle();
+      }
+    })();
+  </script>
   <style>
     :root{ --bg:#0b1020; --panel:#121a33; --ink:#e7ecff; --muted:#a7b0d6; --line:#22305a; --accent:#5da9ff; --shadow:0 8px 24px rgba(0,0,0,.35); --aside-w:260px; --rail-w:64px }
     *{box-sizing:border-box}
@@ -17,9 +47,12 @@
     aside{background:var(--panel); border-right:1px solid var(--line); padding:10px; position:sticky; top:0; height:100vh; overflow:auto}
     aside h3{margin:6px 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
     #toc a{display:block; padding:6px 8px; border-radius:8px; color:var(--ink); text-decoration:none; opacity:.9}
-    #toc .toc-row{display:flex; align-items:center; justify-content:space-between; gap:8px}
-    #toc .toc-del{display:none; padding:2px 6px; border-radius:8px; font-size:12px; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer}
-    .editing #toc .toc-del{display:inline-flex}
+    #toc .toc-row{display:flex; align-items:center; gap:8px}
+    #toc .toc-row a{flex:1}
+    #toc .toc-actions{display:flex; gap:6px; align-items:center}
+    #toc .toc-action{display:none; padding:2px 6px; border-radius:8px; font-size:12px; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer}
+    #toc .toc-action:hover{border-color:#35519b}
+    .editing #toc .toc-action{display:inline-flex}
     #toc a:hover{background:#16224a}
     #toc .empty{color:var(--muted); font-size:13px}
     #toc .toc-sub a{font-size:13px; padding-left:20px; opacity:.85}
@@ -159,7 +192,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       <header>
         <div class="bar">
           <button class="btn" id="btnToc" title="Toggle contents" type="button" aria-expanded="false">☰</button>
-          <div class="title">Universal Manual Template — Levels & Regulations</div>
+          <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
             <select id="targetContainer" class="select" title="Insert into">
               <option value="sec-level-1" selected>Insert into: Level 1</option>
@@ -408,11 +441,23 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         a.href=`#${sec.id}`;
         const title=$('.h2-title',sec)?.textContent?.trim()||$('h2',sec)?.textContent?.trim()||'Untitled';
         a.textContent=title;
+        const actions=document.createElement('div');
+        actions.className='toc-actions';
+        const addSub=document.createElement('button');
+        addSub.className='toc-action toc-add-sub';
+        addSub.type='button';
+        addSub.title='Add subsection';
+        addSub.setAttribute('aria-label','Add subsection');
+        addSub.textContent='+';
+        addSub.dataset.targetId=sec.id;
         const delS=document.createElement('button');
-        delS.className='toc-del toc-del-sec';
+        delS.className='toc-action toc-del toc-del-sec';
         delS.type='button'; delS.title='Delete section'; delS.textContent='🗑️';
         delS.dataset.targetId=sec.id;
-        row.appendChild(a); row.appendChild(delS);
+        actions.appendChild(addSub);
+        actions.appendChild(delS);
+        row.appendChild(a);
+        row.appendChild(actions);
         wrap.appendChild(row);
         // subsections
         const subs=$$('.subsection', sec);
@@ -427,11 +472,14 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
             const st=$('.num', s)?.textContent ? `${$('.num', s).textContent} ${$('h3 span.title', s)?.textContent?.trim()||'Subsection'}`
                                                : $('h3 span.title', s)?.textContent?.trim()||'Subsection';
             sa.textContent=st;
+            const subActions=document.createElement('div');
+            subActions.className='toc-actions';
             const delSub=document.createElement('button');
-            delSub.className='toc-del toc-del-sub';
+            delSub.className='toc-action toc-del toc-del-sub';
             delSub.type='button'; delSub.title='Delete subsection'; delSub.textContent='🗑️';
             delSub.dataset.targetId=s.id;
-            srow.appendChild(sa); srow.appendChild(delSub);
+            subActions.appendChild(delSub);
+            srow.appendChild(sa); srow.appendChild(subActions);
             subWrap.appendChild(srow);
           });
           wrap.appendChild(subWrap);
@@ -454,6 +502,13 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
     // Delegation for chips
     document.addEventListener('click', (e)=>{
+      const ta = e.target.closest('.toc-add-sub');
+      if(ta){
+        if(!isEditing) return;
+        const tid = ta.dataset.targetId;
+        if(tid) addSubsection(tid);
+        return;
+      }
       const td = e.target.closest('.toc-del-sub');
       if(td){
         const tid = td.dataset.targetId;
