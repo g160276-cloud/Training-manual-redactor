@@ -90,11 +90,13 @@
     .drop-target{outline:2px dashed #5da9ff; background:rgba(93,169,255,.08)}
     .no-match{display:none; margin:10px 0; padding:10px 12px; border-radius:10px; border:1px dashed var(--line); color:var(--muted)}
     .inline-controls{display:flex; gap:8px; align-items:center}
+    #btnToc{display:none}
     /* Delete buttons: visible only in editing mode */
     .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
     .del:hover{border-color:#35519b}
     .editing .del{display:inline-flex}
     @media (max-width: 1100px){
+      #btnToc{display:inline-flex; align-items:center; gap:6px}
       .wrap{grid-template-columns: var(--rail-w) 1fr}
       aside{position:fixed; left:var(--rail-w); top:0; bottom:0; width:min(84vw,310px); transform:translateX(-100%); transition:.2s ease; z-index:40; box-shadow:0 10px 40px rgba(0,0,0,.5)}
       aside.open{transform:translateX(0)}
@@ -242,6 +244,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         <div class="bar">
           <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
+            <button class="btn" id="btnToc" type="button" aria-expanded="false" aria-controls="aside" title="Show or hide contents panel">☰ Contents</button>
             <button class="btn" id="btnAddTop" type="button" title="Add top-level section (new block)">+ Top-level</button>
             <button class="btn" id="btnToggleFilters" type="button" aria-expanded="true" title="Show/Hide filters">Filters</button>
           </div>
@@ -746,6 +749,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
     // UI toggles (TOC)
     if(btnToc && aside && tocBackdrop){
+      btnToc.setAttribute('aria-expanded', String(aside.classList.contains('open')));
       btnToc.addEventListener('click', ()=>{
         const open = !aside.classList.contains('open');
         aside.classList.toggle('open', open);
