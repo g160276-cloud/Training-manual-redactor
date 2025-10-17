@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Universal Manual Template — Nested Sections + Drag (Delete Enabled)</title>
+  <style>
+    :root{ --bg:#0b1020; --panel:#121a33; --ink:#e7ecff; --muted:#a7b0d6; --line:#22305a; --accent:#5da9ff; --shadow:0 8px 24px rgba(0,0,0,.35); --aside-w:260px; --rail-w:64px }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; background:linear-gradient(180deg,#0a0f1e 0%, #0b1020 100%); color:var(--ink); font:15px/1.55 system-ui, Segoe UI, Roboto, Arial}
+    .wrap{display:grid; grid-template-columns: var(--rail-w) var(--aside-w) 1fr; min-height:100vh}
+    .rail{background:#0a132b; border-right:1px solid var(--line); position:sticky; top:0; height:100vh; padding:8px 6px; display:flex; flex-direction:column; gap:8px}
+    .rail .icon{width:100%; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:1px solid transparent; font-size:18px}
+    .rail .icon:hover{background:#0f1b3a; border-color:#1e2d60}
+    .rail .icon[aria-current="page"]{background:#16224a; border-color:#2a3d7a}
+    aside{background:var(--panel); border-right:1px solid var(--line); padding:10px; position:sticky; top:0; height:100vh; overflow:auto}
+    aside h3{margin:6px 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
+    #toc a{display:block; padding:6px 8px; border-radius:8px; color:var(--ink); text-decoration:none; opacity:.9}
+    #toc .toc-row{display:flex; align-items:center; justify-content:space-between; gap:8px}
+    #toc .toc-del{display:none; padding:2px 6px; border-radius:8px; font-size:12px; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer}
+    .editing #toc .toc-del{display:inline-flex}
+    #toc a:hover{background:#16224a}
+    #toc .empty{color:var(--muted); font-size:13px}
+    #toc .toc-sub a{font-size:13px; padding-left:20px; opacity:.85}
+    #toc .toc-sub a:before{content:"↳ "; opacity:.6}
+    header{position:sticky; top:0; z-index:5; backdrop-filter: blur(6px); background:linear-gradient(180deg, rgba(11,16,32,.92) 0%, rgba(11,16,32,.75) 100%); border-bottom:1px solid var(--line)}
+    .bar{display:flex; align-items:center; gap:8px; padding:8px 12px}
+    .title{font-size:16px; font-weight:600; margin-right:auto}
+    .btn, .chip, .select{background:#0d1630; border:1px solid var(--line); color:var(--ink); padding:6px 10px; border-radius:10px; cursor:pointer}
+    .btn:hover, .select:hover{border-color:#35519b}
+    .btn[disabled]{opacity:.6; cursor:not-allowed}
+    .chip[aria-pressed="true"]{background:#16224a}
+    .filters{padding:10px 12px; border-top:1px solid var(--line); transition:max-height .25s ease, opacity .25s ease; overflow:hidden}
+    .filters.collapsed{max-height:0; opacity:0; padding-top:0; padding-bottom:0; border-top:0}
+    .group{margin:8px 0}
+    .group label{font-size:12px; color:var(--muted); display:block; margin:0 0 6px}
+    .chips{display:flex; gap:8px; flex-wrap:wrap}
+    main{padding:14px 16px}
+    .meta{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 10px}
+    .badge{background:#16224a; color:var(--muted); border:1px solid var(--line); padding:3px 8px; border-radius:999px; font-size:12px}
+    .section{background:rgba(255,255,255,.02); border:1px solid var(--line); border-radius:14px; padding:14px; margin:14px 0; box-shadow:var(--shadow)}
+    .section h2{margin:.2rem 0 .5rem; font-size:19px; display:flex; align-items:center; gap:8px}
+    .subsection{margin:12px 0 8px; padding:10px 12px; border-left:3px solid #2a3d7a; border-radius:10px; background:rgba(255,255,255,.02)}
+    .subsection h3{margin:.1rem 0 .4rem; font-size:16px; display:flex; align-items:center; gap:8px}
+    .num{font-weight:600; opacity:.7}
+    .drag-handle{cursor:grab; user-select:none}
+    .dragging{opacity:.5}
+    .drop-target{outline:2px dashed #5da9ff; background:rgba(93,169,255,.08)}
+    .no-match{display:none; margin:10px 0; padding:10px 12px; border-radius:10px; border:1px dashed var(--line); color:var(--muted)}
+    .inline-controls{display:flex; gap:8px; align-items:center}
+    /* Delete buttons: visible only in editing mode */
+    .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
+    .del:hover{border-color:#35519b}
+    .editing .del{display:inline-flex}
+    @media (max-width: 1100px){
+      .wrap{grid-template-columns: var(--rail-w) 1fr}
+      aside{position:fixed; left:var(--rail-w); top:0; bottom:0; width:min(84vw,310px); transform:translateX(-100%); transition:.2s ease; z-index:40; box-shadow:0 10px 40px rgba(0,0,0,.5)}
+      aside.open{transform:translateX(0)}
+      .toc-backdrop{content:""; position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:39}
+      .toc-backdrop.show{display:block}
+    }
+    @media print{ aside{display:none} .wrap{grid-template-columns:1fr} body{background:white; color:black} .section{break-inside:avoid} .btn, .select, .del{display:none !important} }
+    .editing .section{outline:1px dashed #35519b}
+    /* Inline reference mark visible only on screen; subtle */
+    .ref{background:rgba(93,169,255,.15); border-bottom:1px dashed #5da9ff; position:relative; cursor:help}
+    .ref:hover::after{content:attr(title); position:absolute; left:0; top:100%; transform:translateY(6px); background:#16224a; color:#e7ecff; border:1px solid var(--line); padding:4px 8px; border-radius:8px; font-size:12px; white-space:nowrap; box-shadow:var(--shadow); z-index:5}
+    .refs-off .ref{background:transparent; border-bottom:1px dashed transparent}
+    .ref.flash{outline:2px solid var(--accent); box-shadow:0 0 0 4px rgba(93,169,255,.25); transition: box-shadow .8s ease, outline .8s ease}
+    #refList .ref-item{display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; margin:6px 0}
+    #refList .ref-item .meta{display:flex; gap:6px; flex-wrap:wrap; font-size:12px}
+    #refList .ref-item .q{font-weight:600; background:#16224a; border:1px solid var(--line); border-radius:999px; padding:2px 8px}
+    #refList .ref-item .go{border:1px solid var(--line); background:#0d1630; color:var(--ink); border-radius:8px; padding:2px 6px; cursor:pointer}
+    #refList .ref-item .del{display:inline-flex}
+    @media print{
+      .ref{background:none !important; border:none !important}
+      #refList, #refList + * , .rail, aside, header .btn, header .select, .filters{display:none !important}
+    }
+  .revMarkerStart,.revMarkerEnd{display:inline-block;width:0;border-left:3px solid #38bdf8;height:1.2em;line-height:1.2em;margin-left:-3px;vertical-align:baseline}
+.revMarkerStart{border-left-color:#38bdf8}
+.revMarkerEnd{border-left-color:#22d3ee}
+.revChangedBlock{position:relative}
+.revChangedBlock::before,.revChangedBlock::after{
+  content:""; position:absolute; left:-3px; width:0; border-left:3px solid #38bdf8;
+}
+.revChangedBlock::before{ top:0; height:0; } /* will be auto-sized via JS if used */
+.revChangedBlock::after{ bottom:0; height:0; } /* not used now but reserved */
+
+/* === Highlights visibility toggle === */
+.rev-hl-off .revMarkerStart,
+.rev-hl-off .revMarkerEnd { opacity: 0 !important; }
+
+.rev-hl-off .revChanged { border-left-color: transparent !important; }
+
+.rev-hl-off .revChangedBlock {
+  border-left-color: transparent !important;
+}
+
+
+/* === Hidden text feature === */
+.hiddenText { opacity: 0.55; transition: opacity .2s ease; }
+
+/* ======== PRINT LOGIC (fixed) ======== */
+@media print {
+  /* By default (no special class) — hidden text is NOT printed */
+  .hiddenText { display: none !important; }
+  /* Only print hidden text when body has .print-hidden-on */
+  body.print-hidden-on .hiddenText {
+    display: inline !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Hide on screen when toggled off */
+.hide-hidden .hiddenText { opacity: 0.55; transition: opacity .2s ease; }
+
+  /* If printing with hidden text is enabled */
+  body.print-hidden-on .hiddenText { opacity: 0.55; transition: opacity .2s ease; }
+}
+
+
+/* Hide legacy top-bar reference controls (moved to drawer) */
+#btnAddRef, #btnToggleRefs { display: none !important; }
+
+
+/* Hide aside's References section to avoid duplication (managed via drawer now) */
+aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
+
+#aside #refList { display: none !important; }
+
+
+/* Ensure refs drawer scrolls properly */
+#refsDrawer { display:flex; flex-direction:column; }
+#refsDrawer > div:nth-child(2) { flex:1; min-height:0; }
+#refDrawerList { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; }
+
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="rail" aria-label="Main">
+      <button class="icon" id="railLibrary" title="Library" aria-current="page" type="button" aria-label="Library">📚</button>
+      <button class="icon" id="railEdit" title="Edit" type="button" aria-pressed="false" aria-label="Toggle edit">✏️</button>
+      <button class="icon" id="railPrint" title="Print" type="button" aria-label="Print">🖨️</button>
+      <button class="icon" id="railRevisions" title="Revisions" type="button" aria-label="Revisions">🕓</button>
+      <button class="icon" id="railHidden" title="Hidden text" type="button" aria-label="Hidden text" style="font-size:20px;">🙈</button>
+<button class="icon" id="railRefs" title="References" type="button" aria-label="References" style="font-size:20px;">🔖</button>
+<button class="icon" id="railSettings" title="Settings" type="button" aria-label="Settings">⚙️</button>
+    </nav>
+
+    <aside id="aside">
+      <h3>Contents</h3>
+      <nav id="toc"><p class="empty">Visible sections will appear here.</p></nav>
+      <h3>References</h3>
+      <div id="refList"><p class="empty">No references yet.</p></div>
+    </aside>
+
+    <main>
+      <header>
+        <div class="bar">
+          <button class="btn" id="btnToc" title="Toggle contents" type="button" aria-expanded="false">☰</button>
+          <div class="title">Universal Manual Template — Levels & Regulations</div>
+          <div class="inline-controls">
+            <select id="targetContainer" class="select" title="Insert into">
+              <option value="sec-level-1" selected>Insert into: Level 1</option>
+              <option value="sec-level-2">Insert into: Level 2</option>
+              <option value="sec-level-3">Insert into: Level 3</option>
+              <option value="sec-easa">Insert into: EASA Regulations</option>
+              <option value="sec-gcaa">Insert into: GCAA Regulations</option>
+            </select>
+            <button class="btn" id="btnAddSub" type="button" title="Add subsection (H3 under selected)">+ Subsection</button>
+            <button class="btn" id="btnAddTop" type="button" title="Add top-level section (new block)">+ Top-level</button>
+            <button class="btn" id="btnAddRef" type="button" title="Add reference to selected text">+ Ref</button>
+            <button class="btn" id="btnToggleRefs" type="button" aria-pressed="true" title="Show/Hide inline ref marks">Refs: ON</button>
+            <button class="btn" id="btnToggleFilters" type="button" aria-expanded="true" title="Show/Hide filters">Filters</button>
+          </div>
+        </div>
+        <div class="filters" id="filters">
+          <div class="group">
+            <label>Levels</label>
+            <div class="chips" id="levelChips">
+              <span class="chip" data-level="1" role="button" tabindex="0" aria-pressed="true">Level 1</span>
+              <span class="chip" data-level="2" role="button" tabindex="0" aria-pressed="true">Level 2</span>
+              <span class="chip" data-level="3" role="button" tabindex="0" aria-pressed="true">Level 3</span>
+            </div>
+          </div>
+          <div class="group">
+            <label>Regulators</label>
+            <div class="chips" id="regChips">
+              <span class="chip" data-reg="easa" role="button" tabindex="0" aria-pressed="true">EASA</span>
+              <span class="chip" data-reg="gcaa" role="button" tabindex="0" aria-pressed="true">GCAA</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="meta" id="meta">
+        <span class="badge" id="metaLevels">Levels: 1, 2, 3</span>
+        <span class="badge" id="metaRegs">Regulators: EASA + GCAA</span>
+        <span class="badge" id="metaSearch">Search: –</span>
+      </div>
+
+      <!-- === TOP-LEVEL SECTIONS === -->
+      <article class="section" data-level="1" data-reg="both" id="sec-level-1">
+        <h2><span class="h2-title">Level 1</span></h2>
+        <p>enter here level one text</p>
+        <div class="subsections" role="group" aria-label="Level 1 subsections"></div>
+      </article>
+
+      <article class="section" data-level="2" data-reg="both" id="sec-level-2">
+        <h2><span class="h2-title">Level 2</span></h2>
+        <p>enter here level two text</p>
+        <div class="subsections" role="group" aria-label="Level 2 subsections"></div>
+      </article>
+
+      <article class="section" data-level="3" data-reg="both" id="sec-level-3">
+        <h2><span class="h2-title">Level 3</span></h2>
+        <p>enter here level three text</p>
+        <div class="subsections" role="group" aria-label="Level 3 subsections"></div>
+      </article>
+
+      <article class="section" data-level="1" data-reg="easa" id="sec-easa">
+        <h2><span class="h2-title">EASA Regulations</span></h2>
+        <p>enter here EASA regulations text</p>
+        <div class="subsections" role="group" aria-label="EASA subsections"></div>
+      </article>
+
+      <article class="section" data-level="1" data-reg="gcaa" id="sec-gcaa">
+        <h2><span class="h2-title">GCAA Regulations</span></h2>
+        <p>enter here GCAA regulations text</p>
+        <div class="subsections" role="group" aria-label="GCAA subsections"></div>
+      </article>
+
+      <p class="no-match" id="noMatch">No sections match the current filters.</p>
+    </main>
+  </div>
+
+  <div class="toc-backdrop" id="tocBackdrop" aria-hidden="true"></div>
+
+  <script>
+  'use strict';
+  (function(){
+    let lastRange=null;
+    const $=(s,c=document)=>c.querySelector(s);
+    const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
+    const byId=(id)=>document.getElementById(id);
+
+    const aside=byId('aside');
+    const tocBackdrop=byId('tocBackdrop');
+    const metaLevels=byId('metaLevels');
+    const metaRegs=byId('metaRegs');
+    const noMatch=byId('noMatch');
+    const toc=byId('toc');
+    const filtersEl=byId('filters');
+    const btnToggleFilters=byId('btnToggleFilters');
+    const targetContainer=byId('targetContainer');
+    const btnAddSub=byId('btnAddSub');
+    const btnAddTop=byId('btnAddTop');
+    const btnAddRef=byId('btnAddRef');
+    const btnToggleRefs=byId('btnToggleRefs');
+    const refList=byId('refList');
+
+    function getLevelChips(){ return $$('#levelChips .chip'); }
+    function getRegChips(){ return $$('#regChips .chip'); }
+
+    // Accessibility helpers
+    function trapButtonKeys(root){
+      root.addEventListener('keydown', (e)=>{
+        const t=e.target;
+        if((e.key==='Enter' || e.key===' ') && (t.matches('.chip') || t.matches('.icon') || t.matches('.btn') || t.matches('.select') || t.matches('.del'))){
+          e.preventDefault();
+          t.click();
+        }
+      });
+    }
+    trapButtonKeys(document);
+
+    document.addEventListener('selectionchange', ()=>{
+      const sel = window.getSelection();
+      if(sel && sel.rangeCount>0){
+        lastRange = sel.getRangeAt(0).cloneRange();
+      }
+    });
+
+    // UI toggles (TOC)
+    byId('btnToc').addEventListener('click', ()=>{
+      const open = !aside.classList.contains('open');
+      aside.classList.toggle('open', open);
+      tocBackdrop.classList.toggle('show', open);
+      byId('btnToc').setAttribute('aria-expanded', String(open));
+      tocBackdrop.setAttribute('aria-hidden', String(!open));
+    });
+    tocBackdrop.addEventListener('click', ()=>{
+      aside.classList.remove('open');
+      tocBackdrop.classList.remove('show');
+      byId('btnToc').setAttribute('aria-expanded', 'false');
+      tocBackdrop.setAttribute('aria-hidden', 'true');
+    });
+
+    function getState(){
+      const levelChips=getLevelChips();
+      const regChips=getRegChips();
+      const levels=levelChips.filter(c=>c.getAttribute('aria-pressed')==='true').map(c=>c.dataset.level);
+      const regs=regChips.filter(c=>c.getAttribute('aria-pressed')==='true').map(c=>c.dataset.reg);
+      return {levels, regs};
+    }
+
+    function sectionMatches(section, state){
+      const level=section.dataset.level;
+      const reg=section.dataset.reg;
+      const levelOk=state.levels.includes(level);
+      const regOk= state.regs.length===2 || reg==='both' || state.regs.includes(reg);
+      return levelOk && regOk;
+    }
+
+    function render(){
+    // References —— create, list, delete
+    function getSelectionRange(){
+      const sel = window.getSelection();
+      if(sel && sel.rangeCount>0){
+        return sel.getRangeAt(0);
+      }
+      return lastRange ? lastRange.cloneRange() : null;
+    }
+    function surroundRange(range, node){
+      // avoid splitting across sections like aside etc.
+      try{ range.surroundContents(node); return true; }catch(e){
+        // Fallback: wrap a clone of selection text
+        const txt = range.toString();
+        node.textContent = txt;
+        range.deleteContents();
+        range.insertNode(node);
+        return true;
+      }
+    }
+    function addReference(){
+      if(!isEditing) return;
+      const range = getSelectionRange();
+      if(!range || range.collapsed) { alert('Select text to reference first.'); return; }
+      const q = prompt('Enter reference label (any characters allowed):');
+      if(!q) return;
+      const refId = uid('ref');
+      const span = document.createElement('span');
+      span.className='ref';
+      span.dataset.q=q.trim();
+      span.dataset.refId=refId;
+      span.title='Linked to ' + q.trim();
+      surroundRange(range, span);
+      const sel = window.getSelection(); if(sel) sel.removeAllRanges();
+      buildRefList();
+    }
+    function unwrap(el){
+      const parent = el.parentNode;
+      while(el.firstChild) parent.insertBefore(el.firstChild, el);
+      el.remove();
+    }
+    function buildRefList(){
+      if(!refList) return;
+      const refs = $$('.ref');
+      refList.innerHTML='';
+      if(!refs.length){ refList.innerHTML='<p class="empty">No references yet.</p>'; return; }
+      refs.forEach(r=>{
+        const id = r.dataset.refId || '';
+        const q = r.dataset.q || '';
+        const text = r.textContent.trim().slice(0,180);
+        const sec = r.closest('.section');
+        const secTitle = $('.h2-title', sec)?.textContent?.trim() || 'Section';
+        const item = document.createElement('div');
+        item.className='ref-item';
+        item.innerHTML = `
+          <div>
+            <div class="meta"><span class="q">${q}</span><span>${secTitle}</span></div>
+            <div class="excerpt">${text}</div>
+          </div>
+          <div class="actions">
+            <button class="go" data-refid="${id}" type="button" title="Go to text">Go</button>
+            <button class="del" data-refid="${id}" type="button" title="Remove reference">🗑️</button>
+          </div>
+        `;
+        refList.appendChild(item);
+      });
+    }
+
+      const state=getState();
+      const sections=$$('.section');
+      let visible=0;
+      sections.forEach(sec=>{ const ok=sectionMatches(sec,state); sec.style.display = ok? '' : 'none'; if(ok) visible++; });
+      if(noMatch) noMatch.style.display=visible? 'none':'block';
+      if(metaLevels) metaLevels.textContent=`Levels: ${state.levels.join(', ')||'–'}`;
+      if(metaRegs) metaRegs.textContent=`Regulator${state.regs.length>1?'s':''}: ${state.regs.map(x=>x.toUpperCase()).join(' + ')||'–'}`;
+      numberSubs();
+      buildToc();
+      buildRefList();
+      refreshTargetDropdown();
+      ensureDeleteButtons();
+    }
+
+    function buildToc(){
+      const state=getState();
+      const items=$$('.section').filter(sec=>sectionMatches(sec,state));
+      toc.innerHTML='';
+      if(!items.length){ toc.innerHTML='<p class="empty">No visible sections yet.</p>'; return; }
+      items.forEach(sec=>{
+        const wrap=document.createElement('div');
+        const row=document.createElement('div');
+        row.className='toc-row';
+        const a=document.createElement('a');
+        a.href=`#${sec.id}`;
+        const title=$('.h2-title',sec)?.textContent?.trim()||$('h2',sec)?.textContent?.trim()||'Untitled';
+        a.textContent=title;
+        const delS=document.createElement('button');
+        delS.className='toc-del toc-del-sec';
+        delS.type='button'; delS.title='Delete section'; delS.textContent='🗑️';
+        delS.dataset.targetId=sec.id;
+        row.appendChild(a); row.appendChild(delS);
+        wrap.appendChild(row);
+        // subsections
+        const subs=$$('.subsection', sec);
+        if(subs.length){
+          const subWrap=document.createElement('div');
+          subWrap.className='toc-sub';
+          subs.forEach(s=>{
+            const srow=document.createElement('div');
+            srow.className='toc-row';
+            const sa=document.createElement('a');
+            sa.href=`#${s.id}`;
+            const st=$('.num', s)?.textContent ? `${$('.num', s).textContent} ${$('h3 span.title', s)?.textContent?.trim()||'Subsection'}`
+                                               : $('h3 span.title', s)?.textContent?.trim()||'Subsection';
+            sa.textContent=st;
+            const delSub=document.createElement('button');
+            delSub.className='toc-del toc-del-sub';
+            delSub.type='button'; delSub.title='Delete subsection'; delSub.textContent='🗑️';
+            delSub.dataset.targetId=s.id;
+            srow.appendChild(sa); srow.appendChild(delSub);
+            subWrap.appendChild(srow);
+          });
+          wrap.appendChild(subWrap);
+        }
+        toc.appendChild(wrap);
+      });
+    }
+
+    function toggleChip(chip){
+      const pressed=chip.getAttribute('aria-pressed')==='true';
+      if(chip.dataset.level){
+        const levelChips=getLevelChips();
+        if(levelChips.filter(c=>c.getAttribute('aria-pressed')==='true').length===1 && pressed) return;
+        chip.setAttribute('aria-pressed', String(!pressed));
+      }
+      if(chip.dataset.reg){ chip.setAttribute('aria-pressed', String(!pressed)); }
+      render();
+      buildRefList();
+    }
+
+    // Delegation for chips
+    document.addEventListener('click', (e)=>{
+      const td = e.target.closest('.toc-del-sub');
+      if(td){
+        const tid = td.dataset.targetId;
+        const sub = document.getElementById(tid);
+        if(sub && confirm('Delete this subsection?')){
+          sub.remove();
+          numberSubs(); buildToc(); refreshTargetDropdown();
+        }
+        return;
+      }
+      const ts = e.target.closest('.toc-del-sec');
+      if(ts){
+        const tid = ts.dataset.targetId;
+        const sec = document.getElementById(tid);
+        if(sec && confirm('Delete this entire section and all its subsections?')){
+          sec.remove();
+          render();
+      buildRefList();
+        }
+        return;
+      }
+
+      const chip = e.target.closest('.chip');
+      if(chip) toggleChip(chip);
+    });
+
+    // Editing mode
+    let isEditing=false;
+    function applyEditable(scope=document){
+      const editable = isEditing ? 'true' : 'false';
+      ['h2 .h2-title','h3 .title','p','li','figcaption'].forEach(sel=>{
+        $$(sel, scope).forEach(n=> n.setAttribute('contenteditable', editable));
+      });
+    }
+    function setEditing(on){
+      isEditing=!!on;
+      document.body.classList.toggle('editing', isEditing);
+      byId('railEdit').setAttribute('aria-pressed', String(isEditing));
+      applyEditable(document);
+      btnAddSub.disabled = !isEditing;
+      btnAddTop.disabled = !isEditing;
+      ensureDeleteButtons();
+    }
+    byId('railEdit').addEventListener('click', ()=> setEditing(!isEditing));
+    byId('railPrint').addEventListener('click', ()=> window.print());
+    byId('railLibrary').addEventListener('click', ()=> { window.scrollTo({top:0, behavior:'smooth'}); });
+    byId('railRevisions').addEventListener('click', ()=> { // Revisions panel opener
+(function(){ const d=document.getElementById('revDrawer'); if(d){ d.style.right='0'; if(window.renderRevList) renderRevList(); } })(); });
+    byId('railSettings').addEventListener('click', ()=> {
+      const collapsed = filtersEl.classList.toggle('collapsed');
+      btnToggleFilters.setAttribute('aria-expanded', String(!collapsed));
+    });
+
+    // Top bar buttons
+    btnToggleFilters.addEventListener('click', ()=>{
+      const collapsed = filtersEl.classList.toggle('collapsed');
+      btnToggleFilters.setAttribute('aria-expanded', String(!collapsed));
+    });
+
+    // Insert helpers
+    function uid(prefix){ return prefix + '-' + Math.random().toString(36).slice(2,8); }
+
+    function makeSubsection(){
+      const id = uid('sub');
+      const block = document.createElement('section');
+      block.className='subsection';
+      block.id=id;
+      block.setAttribute('draggable','true');
+      block.innerHTML = `
+        <h3>
+          <span class="num"></span>
+          <span class="drag-handle" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
+          <span class="title">New subsection</span>
+          <button class="del btn-del-sub" type="button" title="Delete subsection" contenteditable="false">🗑️</button>
+        </h3>
+        <p>enter text…</p>
+      `;
+      if(isEditing) applyEditable(block);
+      // focus title for immediate rename
+      setTimeout(()=>{
+        const titleSpan = $('.title', block);
+        if(titleSpan){ titleSpan.focus();
+          const range = document.createRange();
+          range.selectNodeContents(titleSpan);
+          const sel = window.getSelection();
+          sel.removeAllRanges(); sel.addRange(range);
+        }
+      }, 0);
+      return block;
+    }
+
+    function addSubsection(targetId){
+      const parent = byId(targetId) || byId('sec-level-1');
+      const host = $('.subsections', parent) || parent;
+      const block = makeSubsection();
+      host.appendChild(block);
+      ensureDeleteButtons();
+      numberSubs();
+      buildToc();
+      buildRefList();
+      block.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+
+    function addTopLevel(){
+      const id = uid('sec');
+      const article = document.createElement('article');
+      article.className='section';
+      article.dataset.level='1';
+      article.dataset.reg='both';
+      article.id=id;
+      article.innerHTML = `
+        <h2>
+          <span class="h2-title">New Section</span>
+          <button class="del btn-del-sec" type="button" title="Delete section" contenteditable="false">🗑️</button>
+        </h2>
+        <p>enter text…</p>
+        <div class="subsections" role="group" aria-label="Subsections"></div>
+      `;
+      document.querySelector('main').appendChild(article);
+      if(isEditing) applyEditable(article);
+      // No need to wait for render() to inject delete buttons; it's already there.
+      render();
+      buildRefList();
+      article.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+
+    btnAddSub.addEventListener('click', ()=>{
+      if(!isEditing) return;
+      addSubsection(targetContainer.value);
+    });
+
+    btnAddTop.addEventListener('click', ()=>{
+      if(!isEditing) return;
+      addTopLevel();
+    });
+
+    btnAddRef.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
+    btnAddRef.addEventListener('click', ()=>{ setTimeout(addReference, 0); });
+    btnToggleRefs.addEventListener('click', ()=>{
+      const pressed = btnToggleRefs.getAttribute('aria-pressed')==='true';
+      btnToggleRefs.setAttribute('aria-pressed', String(!pressed));
+      btnToggleRefs.textContent = pressed ? 'Refs: OFF' : 'Refs: ON';
+      document.body.classList.toggle('refs-off', pressed);
+    });
+
+    // Delegation for Reference list actions
+    document.addEventListener('click', (e)=>{
+      const go = e.target.closest('.go');
+      if(go){ const id = go.dataset.refid; const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]'); if(mark){ mark.scrollIntoView({behavior:'smooth', block:'center'}); mark.classList.add('flash'); setTimeout(()=> mark.classList.remove('flash'), 800);} return; }
+      const del = e.target.closest('#refList .del');
+      if(del){ const id = del.dataset.refid; const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]'); if(mark && confirm('Remove this reference mark?')){ unwrap(mark); buildRefList(); buildToc(); } return; }
+    });
+
+    function refreshTargetDropdown(){
+      const state=getState();
+      const ids = $$('.section').filter(sec=>sectionMatches(sec, state)).map(sec=>sec.id);
+      Array.from(targetContainer.options).forEach(opt=>{
+        opt.hidden = !ids.includes(opt.value);
+      });
+      if(!ids.includes(targetContainer.value)){
+        const fallback = ids.includes('sec-level-1') ? 'sec-level-1' : (ids[0]||'sec-level-1');
+        targetContainer.value = fallback || 'sec-level-1';
+      }
+    }
+
+    // Numbering like 1.1, 1.2 … using the visible order
+    function numberSubs(){
+      const state=getState();
+      const visibleSections = $$('.section').filter(sec=>sectionMatches(sec, state));
+      visibleSections.forEach((sec, idx)=>{
+        const parentNum = (idx+1);
+        const subs = $$('.subsection', sec);
+        subs.forEach((s, j)=>{
+          const n = parentNum + '.' + (j+1);
+          const numSpan = $('.num', s);
+          if(numSpan) numSpan.textContent = n;
+        });
+      });
+    }
+
+    // Drag & drop for subsections (move within and across parents)
+    let dragEl=null;
+    document.addEventListener('dragstart', (e)=>{
+      const sub = e.target.closest('.subsection');
+      if(!sub) return;
+      dragEl=sub;
+      sub.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain', sub.id);
+    });
+    document.addEventListener('dragend', ()=>{
+      if(dragEl){ dragEl.classList.remove('dragging'); dragEl=null; $$('.drop-target').forEach(n=>n.classList.remove('drop-target')); }
+    });
+    document.addEventListener('dragover', (e)=>{
+      const sub = e.target.closest('.subsection');
+      const host = e.target.closest('.subsections');
+      if(sub || host){
+        e.preventDefault();
+        const target = sub || host;
+        target.classList.add('drop-target');
+      }
+    });
+    document.addEventListener('dragleave', (e)=>{
+      const t = e.target.closest('.drop-target');
+      if(t) t.classList.remove('drop-target');
+    });
+    document.addEventListener('drop', (e)=>{
+      const id = e.dataTransfer.getData('text/plain');
+      const dragged = byId(id);
+      if(!dragged) return;
+      const sub = e.target.closest('.subsection');
+      const host = e.target.closest('.subsections');
+      if(sub){
+        e.preventDefault();
+        sub.classList.remove('drop-target');
+        const rect = sub.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height/2;
+        sub.parentElement.insertBefore(dragged, before ? sub : sub.nextSibling);
+      }else if(host){
+        e.preventDefault();
+        host.classList.remove('drop-target');
+        host.appendChild(dragged);
+      }
+      numberSubs();
+      buildToc();
+      buildRefList();
+    });
+
+    // === DELETE CONTROLS ===
+    function ensureDeleteButtons(){
+      // Sections: inject a delete button in each H2 if not present
+      $$('.section').forEach(sec=>{
+        const h2=$('h2', sec);
+        if(!h2) return;
+        if(!$('.btn-del-sec', h2)){
+          const delBtn=document.createElement('button');
+          delBtn.type='button';
+          delBtn.className='del btn-del-sec';
+          delBtn.title='Delete section';
+          delBtn.textContent='🗑️';
+          delBtn.setAttribute('contenteditable','false');
+          h2.appendChild(delBtn);
+        }
+      });
+      // Subsections: make sure each has a delete button (for any pre-existing ones)
+      $$('.subsection').forEach(sub=>{
+        const h3=$('h3', sub);
+        if(!h3) return;
+        if(!$('.btn-del-sub', h3)){
+          const delBtn=document.createElement('button');
+          delBtn.type='button';
+          delBtn.className='del btn-del-sub';
+          delBtn.title='Delete subsection';
+          delBtn.textContent='🗑️';
+          delBtn.setAttribute('contenteditable','false');
+          h3.appendChild(delBtn);
+        }
+      });
+    }
+
+    // Click handlers for delete (event delegation)
+    document.addEventListener('click', (e)=>{
+      const td = e.target.closest('.toc-del-sub');
+      if(td){
+        const tid = td.dataset.targetId;
+        const sub = document.getElementById(tid);
+        if(sub && confirm('Delete this subsection?')){
+          sub.remove();
+          numberSubs(); buildToc(); refreshTargetDropdown();
+        }
+        return;
+      }
+      const ts = e.target.closest('.toc-del-sec');
+      if(ts){
+        const tid = ts.dataset.targetId;
+        const sec = document.getElementById(tid);
+        if(sec && confirm('Delete this entire section and all its subsections?')){
+          sec.remove();
+          render();
+      buildRefList();
+        }
+        return;
+      }
+
+      const subBtn = e.target.closest('.btn-del-sub');
+      if(subBtn){
+        const sub = subBtn.closest('.subsection');
+        if(sub && confirm('Delete this subsection?')){
+          sub.remove();
+          numberSubs();
+          buildToc();
+      buildRefList();
+          refreshTargetDropdown();
+        }
+        return;
+      }
+      const secBtn = e.target.closest('.btn-del-sec');
+      if(secBtn){
+        const sec = secBtn.closest('.section');
+        if(sec && confirm('Delete this entire section and all its subsections?')){
+          const toRemoveId = sec.id;
+          sec.remove();
+          render();
+      buildRefList();
+          // If removed section was selected in dropdown, render() already refreshes; fallback safety:
+          if(targetContainer.value === toRemoveId) refreshTargetDropdown();
+        }
+        return;
+      }
+    });
+
+    // Init
+    setEditing(true); // start in editing so you can type right away
+    render();
+    buildRefList();
+  })();
+  </script>
+
+<!-- ==== REFS PATCH START (v2025-10-15) ==== -->
+<style>
+  /* Highlight flash for jump-to referenced text */
+  .ref.flash { outline: 2px dashed; outline-offset: 3px; transition: outline-color .8s ease; }
+  @media print {
+    .ref { background: none !important; outline: none !important; }
+    #refList, .ref-panel { display:none !important; } /* ensure refs panel is hidden in PDF */
+  }
+</style>
+<script>
+(function(){
+  if (window.__refsPatchApplied) return;
+  window.__refsPatchApplied = true;
+
+  // Try to reuse existing global flags if present
+  const isEditing = (typeof window.isEditing !== 'undefined') ? window.isEditing : true;
+
+  let lastRange = null;
+
+  document.addEventListener('selectionchange', ()=>{
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      try { lastRange = sel.getRangeAt(0).cloneRange(); } catch(e){ /* ignore */ }
+    }
+  });
+
+  function getSelectionRange(){
+    const sel = window.getSelection && window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      try { return sel.getRangeAt(0); } catch(e){ /* ignore */ }
+    }
+    return lastRange ? lastRange.cloneRange() : null;
+  }
+
+  function surroundRange(range, node){
+    try {
+      range.surroundContents(node);
+      return true;
+    } catch (e) {
+      // Fallback for non-simple ranges
+      const txt = range.toString();
+      if (!txt) return false;
+      node.textContent = txt;
+      range.deleteContents();
+      range.insertNode(node);
+      return true;
+    }
+  }
+
+  function unwrap(el){
+    const parent = el && el.parentNode;
+    if (!parent) return;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    el.remove();
+  }
+
+  function buildRefList(){
+    const refList = document.getElementById('refList') || document.querySelector('.ref-list');
+    if (!refList) return;
+    const refs = Array.from(document.querySelectorAll('.ref'));
+    refList.innerHTML = '';
+    if (!refs.length){
+      refList.innerHTML = '<p class="empty">No references yet.</p>';
+      return;
+    }
+    refs.forEach(r=>{
+      const id  = r.dataset.refId || r.getAttribute('data-ref-id') || ('ref-' + Math.random().toString(36).slice(2,8));
+      r.dataset.refId = id;
+      const q   = (r.dataset.q || r.getAttribute('data-q') || '').toString();
+      const txt = (r.textContent || '').trim().slice(0, 180);
+      const sec = r.closest('.section, [data-section], article, section');
+      const secTitle =
+        (sec && (sec.querySelector('.h2-title, .title, h2, [data-title]')?.textContent || sec.getAttribute('data-title'))) ||
+        'Section';
+      const item = document.createElement('div');
+      item.className='ref-item';
+      item.innerHTML = `
+        <div class="ref-info">
+          <div class="meta"><span class="q">${q}</span><span class="sec">${secTitle}</span></div>
+          <div class="excerpt">${txt}</div>
+        </div>
+        <div class="actions">
+          <button class="go" data-refid="${id}" type="button" title="Go to text">Go</button>
+          <button class="del" data-refid="${id}" type="button" title="Remove reference">🗑️</button>
+        </div>
+      `;
+      refList.appendChild(item);
+    });
+  }
+
+  function addReference(){
+    if (!isEditing) return;
+    const range = getSelectionRange();
+    if (!range || range.collapsed){ alert('Select text to reference first.'); return; }
+
+    let q = prompt('Enter reference label (any characters allowed):');
+    if (!q) return;
+    q = q.trim();
+    if (!/^Q?-?\d+$/i.test(q)) {
+      // Normalize a few formats to "Q##"
+      
+    }
+
+    const refId = 'ref-' + Math.random().toString(36).slice(2, 10);
+    const span = document.createElement('span');
+    span.className = 'ref';
+    span.dataset.q = q;
+    span.dataset.refId = refId;
+    span.setAttribute('title', 'Linked to ' + q);
+
+    const ok = surroundRange(range, span);
+    if (!ok) return;
+
+    const sel = window.getSelection && window.getSelection();
+    if (sel) sel.removeAllRanges();
+
+    buildRefList();
+  }
+
+  // Global exposure so handlers elsewhere can call it too
+  window.addReference   = addReference;
+  window.buildRefList   = buildRefList;
+  window.unwrapRefMark  = unwrap;
+
+  // Delegated actions for the list (Go / Delete)
+  document.addEventListener('click', (e)=>{
+    const go = e.target.closest('.go');
+    if (go){
+      const id = go.dataset.refid;
+      const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]');
+      if (mark){
+        mark.scrollIntoView({behavior:'smooth', block:'center'});
+        mark.classList.add('flash');
+        setTimeout(()=> mark.classList.remove('flash'), 900);
+      }
+      return;
+    }
+    const del = e.target.closest('#refList .del, .ref-list .del');
+    if (del){
+      const id = del.dataset.refid;
+      const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]');
+      if (mark && confirm('Remove this reference mark?')){
+        unwrap(mark);
+        buildRefList();
+      }
+      return;
+    }
+  });
+
+  // Bind +Ref button without breaking selection
+  function bindButton(){
+    const btn = document.getElementById('btnAddRef') || document.querySelector('[data-action="add-ref"], .btn-add-ref');
+    if (!btn) return;
+    btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); });
+    btn.addEventListener('click', ()=>{ setTimeout(addReference, 0); });
+  }
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ()=>{ bindButton(); buildRefList(); });
+  } else {
+    bindButton(); buildRefList();
+  }
+})();
+</script>
+<!-- ==== REFS PATCH END ==== -->
+
+<!-- Local Revisions Drawer -->
+<div id="revDrawer" style="position:fixed;top:0;right:-420px;width:420px;height:100vh;background:#0f172a;color:#e2e8f0;box-shadow:-6px 0 20px rgba(0,0,0,.3);transition:right .25s ease;z-index:99999;display:flex;flex-direction:column;border-left:1px solid #1f2b44;">
+  <div id="revDrawerHeaderTools" style="display:flex;gap:8px;align-items:center;padding:8px 10px;">
+  <button id="revShowMarkersBtn" style="padding:6px 10px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:8px;cursor:pointer;">Show highlights</button>
+  <button id="revClearMarkersBtn" style="padding:6px 10px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:8px;cursor:pointer;">Clear highlights</button>
+  <button id="revPurgeBtn" style="padding:6px 10px;border:1px solid #334155;background:#7f1d1d;color:#fde68a;border-radius:8px;cursor:pointer;">Purge all revisions</button>
+  <button id="revCloseBtn" style="padding:6px 10px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:8px;cursor:pointer;">Close</button></div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1f2b44;">
+    <div style="font-weight:700;">Revisions (local)</div>
+    <div>
+      <button id="revSnapshotBtn" style="margin-right:8px;padding:6px 10px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:8px;cursor:pointer;">Snapshot now</button>
+    </div>
+  </div>
+  <div id="revList" style="overflow:auto;flex:1;padding:8px 12px;"></div>
+  <div style="padding:10px 12px;border-top:1px solid #1f2b44;font-size:12px;opacity:.8;">
+    Saved locally in your browser (LocalStorage). Max 50 items.
+    Press <b>Ctrl+S</b> to snapshot.
+  </div>
+</div>
+<style>
+.revItem{border:1px solid #1f2b44;border-radius:10px;padding:10px;margin:8px 0;background:#0b1223}
+.revMeta{font-size:12px;opacity:.8;margin-top:4px}
+.revActions button{margin-right:6px;padding:4px 8px;border:1px solid #334155;background:#0e1529;color:#e5e7eb;border-radius:8px;cursor:pointer}
+.revActions button:hover{filter:brightness(1.1)}
+.revAdded{background:#194d2a;padding:0 .1em;border-radius:2px}
+.revRemoved{background:#5a1a1a;color:#ffd5d5;text-decoration:line-through;padding:0 .1em;border-radius:2px}
+.revFlash{animation:revFlash 1.2s ease-out}
+@keyframes revFlash{0%{box-shadow:0 0 0 0 rgba(56,189,248,.7)}100%{box-shadow:0 0 0 12px rgba(56,189,248,0)}}
+.revChanged{border-left:3px solid #38bdf8;padding-left:6px;margin-left:-3px; display:inline;}
+.revChangedBlock{border-left:3px solid #38bdf8;padding-left:8px;margin-left:-3px;}
+</style>
+
+
+<script>
+// === Local Revisions Manager + Descriptions + Diff ===
+(function(){
+  const KEY='um_revisions';
+  const BADGE_ID='revBadge';
+  const MAX=50;
+
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } }
+  function save(arr){ try{ localStorage.setItem(KEY, JSON.stringify(arr.slice(0,MAX))); }catch(e){} }
+
+  function pad(n){return String(n).padStart(2,'0')}
+  function nowLabel(){ const dt=new Date(); return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`; }
+
+  function getEditableBlocks(){
+    return Array.from(document.querySelectorAll('[contenteditable="true"]')).map(n=>({ path: getNodePath(n), html: n.innerHTML }));
+  }
+  function applyBlocks(blocks){
+    const nodes = Array.from(document.querySelectorAll('[contenteditable="true"]'));
+    const n = Math.min(nodes.length, blocks.length);
+    for(let i=0;i<n;i++){ nodes[i].innerHTML = blocks[i].html; }
+    alert(`Restored ${n} editable blocks from revision.`);
+  }
+  function getNodePath(el){
+    const path=[]; let e=el;
+    while(e && e.nodeType===1 && e!==document.body){ const ix = Array.from(e.parentNode?e.parentNode.children:[]).indexOf(e); path.unshift(`${e.tagName}:${ix}`); e=e.parentElement; }
+    return path.join('/');
+  }
+
+  window.snapshotRevision = function(){
+    const label = nowLabel();
+    const data = getEditableBlocks();
+    const arr = load();
+    const desc = prompt('Short description for this revision (optional):','') || '';
+    
+const rev = { id: 'r-' + Math.random().toString(36).slice(2,10), label, iso: new Date().toISOString(), count: data.length, data, desc: desc.trim() };
+
+// Insert START/END markers at current selection (or whole block if wrapping fails)
+(function insertStartEndMarkers(){
+  const sel = window.getSelection && window.getSelection();
+  if(!sel || sel.rangeCount===0){ return; }
+  const rng = sel.getRangeAt(0);
+  if(rng.collapsed){ return; }
+
+  function insertMarkerAt(range, cls){
+    const mk = document.createElement('span');
+    mk.className = cls;
+    mk.setAttribute('data-rev-id', rev.id);
+    // collapsed clone for insertion
+    const r = range.cloneRange();
+    r.collapse(cls==='revMarkerStart'); // start -> collapse to start; end -> collapse to end
+    r.insertNode(mk);
+    return mk;
+  }
+
+  try{
+    // Insert at boundaries without altering content
+    insertMarkerAt(rng, 'revMarkerEnd');
+    insertMarkerAt(rng, 'revMarkerStart');
+    sel.removeAllRanges();
+  }catch(e){
+    // Fallback: mark whole contenteditable block
+    let node = rng.commonAncestorContainer;
+    if(node && node.nodeType!==1) node = node.parentElement;
+    while(node && !(node instanceof HTMLElement)) node = node.parentElement;
+    while(node && !(node.getAttribute && node.getAttribute('contenteditable')==='true')) node = node.parentElement;
+    if(node){
+      node.classList.add('revChangedBlock');
+      node.setAttribute('data-rev-id', rev.id);
+      // Add start at very beginning and end at very end
+      const startMk = document.createElement('span');
+      startMk.className='revMarkerStart';
+      startMk.setAttribute('data-rev-id', rev.id);
+      const endMk = document.createElement('span');
+      endMk.className='revMarkerEnd';
+      endMk.setAttribute('data-rev-id', rev.id);
+      node.insertBefore(startMk, node.firstChild);
+      node.appendChild(endMk);
+    }
+  }
+})();
+  // Mark current selection with a vertical line (revChanged) and bind to this revision id
+  (function markSelectionForSnapshot(){
+    const sel = window.getSelection && window.getSelection();
+    if(!sel || sel.rangeCount===0) return;
+    const range = sel.getRangeAt(0);
+    if(range.collapsed) return;
+    const wrapper = document.createElement('span');
+    wrapper.className = 'revChanged';
+    wrapper.dataset.revId = rev.id;
+    try{
+      const frag = range.extractContents();
+      wrapper.appendChild(frag);
+      range.insertNode(wrapper);
+      sel.removeAllRanges();
+    }catch(e){
+      let node = range.commonAncestorContainer;
+      if(node && node.nodeType!==1) node = node.parentElement;
+      while(node && !(node instanceof HTMLElement)) node = node.parentElement;
+      while(node && !(node.getAttribute && node.getAttribute('contenteditable')==='true')) node=node.parentElement;
+      if(node){
+        node.classList.add('revChangedBlock');
+        node.setAttribute('data-rev-id', rev.id);
+      }
+    }
+  })();
+
+
+  // Mark current selection with a vertical line (revChanged)
+  (function markSelectionForSnapshot(){
+    const sel = window.getSelection && window.getSelection();
+    if(!sel || sel.rangeCount===0) return;
+    const range = sel.getRangeAt(0);
+    if(range.collapsed) return;
+    // Try to wrap exact selection
+    const wrapper = document.createElement('span');
+    wrapper.className = 'revChanged';
+    try{
+      const frag = range.extractContents();
+      wrapper.appendChild(frag);
+      range.insertNode(wrapper);
+      sel.removeAllRanges();
+    }catch(e){
+      // Fallback: highlight whole parent contenteditable block
+      let node = range.commonAncestorContainer;
+      if(node && node.nodeType!==1) node = node.parentElement;
+      while(node && !(node instanceof HTMLElement)) node = node.parentElement;
+      while(node && !(node.getAttribute && node.getAttribute('contenteditable')==='true')) node=node.parentElement;
+      if(node) node.classList.add('revChangedBlock');
+    }
+  })();
+
+    arr.unshift(rev);
+    save(arr);
+    try{ localStorage.setItem('um_current_revision', label); }catch(e){}
+    const badge=document.getElementById(BADGE_ID); if(badge) badge.textContent='Rev: '+label;
+    renderRevList();
+  };
+
+  window.renderRevList = function(){
+    const list = document.getElementById('revList'); if(!list) return;
+    const arr = load();
+    if(arr.length===0){ list.innerHTML='<div style="opacity:.7">No revisions yet. Click <b>Snapshot now</b> or press <b>Ctrl+S</b>.</div>'; return; }
+    list.innerHTML = arr.map((r,idx)=>`
+      <div class="revItem">
+        <div><b>${r.label}</b></div>
+        <div>${r.desc ? r.desc : ''}</div>
+        <div class="revMeta">${r.count||0} blocks · ${r.id}</div>
+        <div class="revActions" style="margin-top:6px">
+          <button onclick="previewRevision('${r.id}')">View</button>
+          <button onclick="goToRevision('${r.id}')">Go</button>
+          <button onclick="restoreRevision('${r.id}')">Restore</button>
+          <button onclick="editRevisionDesc('${r.id}')">Edit</button>
+          <button onclick="deleteRevision('${r.id}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  };
+
+  window.previewRevision = function(id){
+    const arr=load(); const r = arr.find(x=>x.id===id);
+    if(!r){ alert('Not found'); return; }
+    const sample = (r.data||[]).slice(0,3).map((b,i)=>`[${i+1}] ` + (b.html||'').replace(/<[^>]+>/g,' ').trim().slice(0,120)).join('\n\n');
+    alert(`Revision ${r.label}\nBlocks: ${r.count}\n\nPreview first 3 blocks:\n\n${sample}`);
+  };
+
+  window.restoreRevision = function(id){
+    const arr=load(); const r = arr.find(x=>x.id===id);
+    if(!r){ alert('Not found'); return; }
+    if(!confirm('Restore this revision? Current unsaved edits will be overwritten in visible fields.')) return;
+    applyBlocks(r.data||[]);
+    try{ localStorage.setItem('um_current_revision', r.label); }catch(e){}
+    const badge=document.getElementById(BADGE_ID); if(badge) badge.textContent='Rev: '+r.label;
+  };
+
+  window.deleteRevision = function(id){
+    let arr=load(); arr = arr.filter(x=>x.id!==id); save(arr); renderRevList();
+  };
+
+  window.editRevisionDesc = function(id){
+    const arr=load(); const r = arr.find(x=>x.id===id); if(!r){ alert('Not found'); return; }
+    const d = prompt('Edit description:', r.desc||''); if(d===null) return; r.desc = d.trim(); save(arr); renderRevList();
+  };
+
+  function diffWords(a,b){
+    const wa=a.split(/(\s+)/), wb=b.split(/(\s+)/);
+    const dp=Array(wa.length+1).fill(0).map(()=>Array(wb.length+1).fill(0));
+    for(let i=wa.length-1;i>=0;i--){ for(let j=wb.length-1;j>=0;j--){ dp[i][j] = (wa[i]===wb[j]) ? 1+dp[i+1][j+1] : Math.max(dp[i+1][j], dp[i][j+1]); } }
+    const out=[]; let i=0,j=0;
+    while(i<wa.length || j<wb.length){
+      if(i<wa.length && j<wb.length && wa[i]===wb[j]){ out.push({t:wa[i],k:'same'}); i++; j++; }
+      else if(j<wb.length && (i===wa.length || dp[i][j+1] >= dp[i+1][j])){ out.push({t:wb[j],k:'add'}); j++; }
+      else if(i<wa.length){ out.push({t:wa[i],k:'del'}); i++; }
+    }
+    return out;
+  }
+  function esc(s){ return s.replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+  
+  window.goToRevision = function(id){
+    // Prefer exact markers created for this revision
+    let nodes = Array.from(document.querySelectorAll(`[data-rev-id="${id}"]`));
+    if(nodes.length===0){
+      alert('No markers for this revision are present in the document.');
+      return;
+    }
+    // Focus first marker; if it's an inline span, briefly flash
+    const node = nodes[0];
+    if(node.classList){
+      node.classList.add('revFlash');
+      setTimeout(()=>node.classList.remove('revFlash'), 1200);
+    }
+    node.scrollIntoView({behavior:'smooth', block:'center'});
+  };
+  
+  // Drawer controls + hotkeys
+  (document.getElementById('revCloseBtn')||{}).onclick = ()=>{
+  const d=document.getElementById('revDrawer');
+  if(d) d.style.right='-420px';
+};
+  (document.getElementById('revSnapshotBtn')||{}).onclick = ()=>{ snapshotRevision(); };
+  (document.getElementById('revClearHL')||{}).onclick = ()=>{
+    document.querySelectorAll('[contenteditable="true"]').forEach(n=>{
+      if(n.dataset.prevHtml){ n.innerHTML=n.dataset.prevHtml; delete n.dataset.prevHtml; }
+      n.querySelectorAll('mark.revAdded, mark.revRemoved').forEach(m=>{ const t=document.createTextNode(m.textContent); m.replaceWith(t); });
+    });
+  };
+  window.addEventListener('keydown', (e)=>{
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); snapshotRevision(); const d=document.getElementById('revDrawer'); if(d && d.style.right!=='0'){ d.style.right='0'; renderRevList(); } }
+  });
+
+  // Init badge from storage
+  try{ const saved = localStorage.getItem('um_current_revision'); if(saved){ const b=document.getElementById(BADGE_ID); if(b) b.textContent = 'Rev: '+saved; } }catch(e){}
+})();
+
+(document.getElementById('revClearMarkersBtn')||{}).onclick = ()=>{
+  document.body.classList.add('rev-hl-off');
+};
+</script>
+
+
+<script>
+(function(){
+  function unwrap(node){
+    if(!node || !node.parentNode) return;
+    const parent = node.parentNode;
+    while (node.firstChild) parent.insertBefore(node.firstChild, node);
+    parent.removeChild(node);
+  }
+
+  (document.getElementById('revPurgeBtn')||{}).onclick = function(){
+    if(!confirm('Delete ALL revisions, markers, and history? This cannot be undone.')) return;
+
+    // Remove inline change wrappers but keep their text
+    document.querySelectorAll('span.revChanged').forEach(unwrap);
+
+    // Remove vertical boundary markers
+    document.querySelectorAll('span.revMarkerStart, span.revMarkerEnd').forEach(function(n){
+      if(n && n.parentNode) n.parentNode.removeChild(n);
+    });
+
+    // Clean block-level markers/classes
+    document.querySelectorAll('.revChangedBlock').forEach(function(el){
+      el.classList.remove('revChangedBlock');
+      el.removeAttribute('data-rev-id');
+    });
+
+    // Remove any other elements carrying data-rev-id (safety)
+    document.querySelectorAll('[data-rev-id]').forEach(function(el){
+      el.removeAttribute('data-rev-id');
+    });
+
+    // Clear hidden state (so nothing remains "invisible")
+    document.body.classList.remove('rev-hl-off');
+
+    // Clear local storage revisions
+    try{
+      localStorage.removeItem('um_revisions');
+      localStorage.removeItem('um_current_revision');
+    }catch(e){}
+
+    // Refresh the drawer list if function exists
+    if (typeof window.renderRevList === 'function') {
+      window.renderRevList();
+    }
+
+    alert('All revisions, markers, and history were purged.');
+  };
+})();
+</script>
+
+
+<script>
+(function(){
+  function wrapSelectionWithHidden(){
+    const sel = window.getSelection && window.getSelection();
+    if(!sel || sel.rangeCount === 0 || sel.isCollapsed){
+      alert('Select text to mark as hidden.');
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.className = 'hiddenText';
+    try{
+      range.surroundContents(span);
+    }catch(e){
+      // Fallback: extract and insert
+      const frag = range.cloneContents();
+      range.deleteContents();
+      span.appendChild(frag);
+      range.insertNode(span);
+    }
+    // Clear selection
+    try{ sel.removeAllRanges(); }catch(e){}
+  }
+
+  const btnMark = document.getElementById('btnMarkHidden');
+  if(btnMark){
+    btnMark.addEventListener('click', wrapSelectionWithHidden);
+  }
+
+  const btnToggleHidden = document.getElementById('btnToggleHidden');
+  if(btnToggleHidden){
+    btnToggleHidden.addEventListener('click', ()=>{
+      const off = !document.body.classList.contains('hide-hidden'); // going to hide
+      document.body.classList.toggle('hide-hidden', off);
+      btnToggleHidden.textContent = off ? 'Show hidden' : 'Hide hidden';
+    });
+  }
+
+  const btnTogglePrintHidden = document.getElementById('btnTogglePrintHidden');
+if(btnTogglePrintHidden){
+  // on click: toggle and then set text to reflect CURRENT state
+  btnTogglePrintHidden.addEventListener('click', ()=>{
+    const enable = !document.body.classList.contains('print-hidden-on');
+    document.body.classList.toggle('print-hidden-on', enable);
+    // If enabled => currently printing WITH hidden text
+    btnTogglePrintHidden.textContent = enable ? 'Print with hidden text' : 'Print without hidden text';
+  });
+  // initialize text based on current state on load
+  const initial = document.body.classList.contains('print-hidden-on');
+  btnTogglePrintHidden.textContent = initial ? 'Print with hidden text' : 'Print without hidden text';
+}
+})();
+</script>
+
+
+<!-- Hidden Text Drawer -->
+<div id="hiddenDrawer" style="position:fixed;top:0;right:-420px;width:420px;height:100vh;background:#0f172a;color:#e2e8f0;box-shadow:-6px 0 20px rgba(0,0,0,.3);transition:right .25s ease;z-index:99998;display:flex;flex-direction:column;border-left:1px solid #1f2b44;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1f2b44;">
+    <div style="font-weight:700;">Hidden text controls</div>
+    <button id="hiddenCloseBtn" style="padding:6px 10px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:8px;cursor:pointer;">Close</button>
+  </div>
+  <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;">
+    <button id="btnMarkHidden" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">Mark selection as hidden</button>
+    <button id="btnToggleHidden" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">Hide hidden</button>
+    <button id="btnTogglePrintHidden" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">Print without hidden text</button>
+    <hr style="border:none;border-top:1px solid #1f2b44;margin:8px 0;">
+    <button id="btnUnmarkHidden" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">Unmark selection (remove hidden)</button>
+  </div>
+  <div style="padding:10px 12px;border-top:1px solid #1f2b44;font-size:12px;opacity:.85;">
+    Tip: select any text and click “Mark selection as hidden”. Use the toggles to preview/print with or without hidden text.
+  </div>
+</div>
+
+
+<script>
+(function(){
+  // Open/close drawer
+  const railBtn = document.getElementById('railHidden');
+  const drawer = document.getElementById('hiddenDrawer');
+  const closeBtn = document.getElementById('hiddenCloseBtn');
+  if (railBtn && drawer){
+    railBtn.addEventListener('click', ()=>{
+      drawer.style.right = '0';
+    });
+  }
+  if (closeBtn && drawer){
+    closeBtn.addEventListener('click', ()=>{
+      drawer.style.right = '-420px';
+    });
+  }
+
+  // Utilities
+  function unwrap(node){
+    if(!node || !node.parentNode) return;
+    const p = node.parentNode;
+    while(node.firstChild) p.insertBefore(node.firstChild, node);
+    p.removeChild(node);
+  }
+
+  // Mark selection as hidden
+  const btnMark = document.getElementById('btnMarkHidden');
+  if(btnMark){
+    btnMark.addEventListener('click', ()=>{
+      const sel = window.getSelection && window.getSelection();
+      if(!sel || sel.rangeCount===0 || sel.isCollapsed){
+        alert('Select text to mark as hidden.');
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const span = document.createElement('span');
+      span.className = 'hiddenText';
+      try{
+        range.surroundContents(span);
+      }catch(e){
+        const frag = range.cloneContents();
+        range.deleteContents();
+        span.appendChild(frag);
+        range.insertNode(span);
+      }
+      try{ sel.removeAllRanges(); }catch(e){}
+    });
+  }
+
+  // Toggle show/hide on screen
+  const btnToggleHidden = document.getElementById('btnToggleHidden');
+  if(btnToggleHidden){
+    btnToggleHidden.addEventListener('click', ()=>{
+      const goingToHide = !document.body.classList.contains('hide-hidden');
+      document.body.classList.toggle('hide-hidden', goingToHide);
+      btnToggleHidden.textContent = goingToHide ? 'Show hidden' : 'Hide hidden';
+    });
+  }
+
+  // Toggle print behavior
+  const btnTogglePrintHidden = document.getElementById('btnTogglePrintHidden');
+if(btnTogglePrintHidden){
+  // on click: toggle and then set text to reflect CURRENT state
+  btnTogglePrintHidden.addEventListener('click', ()=>{
+    const enable = !document.body.classList.contains('print-hidden-on');
+    document.body.classList.toggle('print-hidden-on', enable);
+    // If enabled => currently printing WITH hidden text
+    btnTogglePrintHidden.textContent = enable ? 'Print with hidden text' : 'Print without hidden text';
+  });
+  // initialize text based on current state on load
+  const initial = document.body.classList.contains('print-hidden-on');
+  btnTogglePrintHidden.textContent = initial ? 'Print with hidden text' : 'Print without hidden text';
+}
+
+  // Unmark selection (remove hidden wrapper around selected hiddenText only)
+  const btnUnmark = document.getElementById('btnUnmarkHidden');
+  if(btnUnmark){
+    btnUnmark.addEventListener('click', ()=>{
+      const sel = window.getSelection && window.getSelection();
+      if(!sel || sel.rangeCount===0){
+        alert('Select hidden text to unmark.');
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      // If selection is inside a .hiddenText wrapper, unwrap it
+      let el = range.commonAncestorContainer;
+      if(el.nodeType !== 1) el = el.parentNode;
+      const wrapper = el.closest ? el.closest('.hiddenText') : null;
+      if(wrapper){
+        unwrap(wrapper);
+      }else{
+        alert('Selection is not inside hidden text.');
+      }
+    });
+  }
+})();
+</script>
+
+
+<!-- References Drawer (Left) -->
+<div id="refsDrawer" style="position:fixed;top:0;left:-420px;width:420px;height:100vh;background:#0f172a;color:#e2e8f0;box-shadow:6px 0 20px rgba(0,0,0,.3);transition:left .25s ease;z-index:99997;display:flex;flex-direction:column;border-right:1px solid #1f2b44;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1f2b44;">
+    <div style="font-weight:700;">References</div>
+    <button id="refsCloseBtn" style="padding:6px 10px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:8px;cursor:pointer;">Close</button>
+  </div>
+  <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;">
+    <button id="drawerAddRef" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">+ Add reference to selection</button>
+    <button id="drawerToggleRefs" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">Refs: ON</button>
+    <button id="drawerRebuildRefs" style="padding:10px 12px;border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;cursor:pointer;text-align:left;">Rebuild list</button>
+    <div id="refDrawerList" style="margin-top:6px;overflow-y:auto;overflow-x:hidden;flex:1;border:1px solid #1f2b44;border-radius:10px;padding:8px;min-height:0;background:#0b1223;-webkit-overflow-scrolling:touch;"></div>
+  </div>
+  <div style="padding:10px 12px;border-top:1px solid #1f2b44;font-size:12px;opacity:.85;">
+    Tip: select text, then click “+ Add reference to selection”. Use “Refs: ON/OFF” to show inline marks.
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const railRefs = document.getElementById('railRefs');
+  const refsDrawer = document.getElementById('refsDrawer');
+  const refsCloseBtn = document.getElementById('refsCloseBtn');
+  const drawerAddRef = document.getElementById('drawerAddRef');
+  const drawerToggleRefs = document.getElementById('drawerToggleRefs');
+  const drawerRebuildRefs = document.getElementById('drawerRebuildRefs');
+  const refDrawerList = document.getElementById('refDrawerList');
+
+  if (railRefs && refsDrawer){
+    railRefs.addEventListener('click', ()=>{ refsDrawer.style.left = '0'; if (window.buildRefList) window.buildRefList(); mirrorRefList(); syncRefsToggleLabel(); });
+  }
+  if (refsCloseBtn && refsDrawer){
+    refsCloseBtn.addEventListener('click', ()=>{ refsDrawer.style.left = '-420px'; });
+  }
+
+  // Mirror the global inline refs toggle state into button label
+  function syncRefsToggleLabel(){
+  const off = document.body.classList.contains('refs-off');
+  // Button shows the ACTION: if refs are ON -> show 'Refs: OFF' (click to turn off)
+  if (drawerToggleRefs) drawerToggleRefs.textContent = off ? 'Refs: ON' : 'Refs: OFF';
+}
+
+  // Add reference using existing global addReference (from refs patch)
+  if (drawerAddRef){
+    drawerAddRef.addEventListener('mousedown', e=>e.preventDefault());
+    drawerAddRef.addEventListener('click', ()=>{
+      if (typeof window.addReference === 'function') {
+        setTimeout(()=> window.addReference(), 0);
+        setTimeout(()=> { if (window.buildRefList) window.buildRefList(); mirrorRefList(); }, 30);
+      } else {
+        alert('Reference add function is unavailable.');
+      }
+    });
+  }
+
+  // Toggle inline refs visibility
+  if (drawerToggleRefs){
+  drawerToggleRefs.addEventListener('click', ()=>{
+    const off = document.body.classList.toggle('refs-off');
+    // After toggling, update label to next ACTION
+    drawerToggleRefs.textContent = off ? 'Refs: ON' : 'Refs: OFF';
+  });
+}
+
+  // Rebuild list on demand
+  if (drawerRebuildRefs){
+    drawerRebuildRefs.addEventListener('click', ()=>{
+      if (window.buildRefList) window.buildRefList();
+      mirrorRefList();
+    });
+  }
+
+  // Mirror #refList (hidden in aside) into #refDrawerList
+  function mirrorRefList(){
+    const source = document.getElementById('refList');
+    if (!source || !refDrawerList) return;
+    // rebuild drawer list as cards with Go/Delete actions
+    refDrawerList.innerHTML = '';
+    const items = source.querySelectorAll('.ref-item');
+    if (!items.length){
+      refDrawerList.innerHTML = '<div style="opacity:.7">No references yet.</div>';
+      return;
+    }
+    items.forEach((it)=>{
+      const card = document.createElement('div');
+      card.className = 'ref-item'; // reuse styles if any
+      card.style.margin = '6px 0';
+      card.style.border = '1px solid #1f2b44';
+      card.style.borderRadius = '8px';
+      card.style.padding = '8px';
+      const meta = it.querySelector('.meta')?.outerHTML || '';
+      const excerpt = it.querySelector('.excerpt')?.outerHTML || '';
+      const id = it.querySelector('button.go')?.getAttribute('data-refid') || '';
+      card.innerHTML = `
+        <div>${meta}${excerpt}</div>
+        <div class="actions" style="margin-top:6px;display:flex;gap:6px;">
+          <button class="go" data-refid="${id}" type="button" style="padding:2px 6px;border:1px solid #334155;background:#0d1630;color:#e5e7eb;border-radius:8px;cursor:pointer;">Go</button>
+          <button class="del" data-refid="${id}" type="button" style="padding:2px 6px;border:1px solid #334155;background:#0d1630;color:#e5e7eb;border-radius:8px;cursor:pointer;">🗑️</button>
+        </div>
+      `;
+      refDrawerList.appendChild(card);
+    });
+  }
+
+  // Delegate Go/Delete actions inside drawer
+  document.addEventListener('click', (e)=>{
+    const go = e.target.closest('#refDrawerList .go');
+    if (go){
+      const id = go.dataset.refid;
+      const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]');
+      if (mark){
+        mark.scrollIntoView({behavior:'smooth', block:'center'});
+        mark.classList.add('flash');
+        setTimeout(()=> mark.classList.remove('flash'), 900);
+      }
+      return;
+    }
+    const del = e.target.closest('#refDrawerList .del');
+    if (del){
+      const id = del.dataset.refid;
+      const mark = id && document.querySelector('.ref[data-ref-id="'+id+'"]');
+      if (mark && confirm('Remove this reference mark?')){
+        // unwrap the .ref element (preserve text)
+        (function unwrap(el){ const p=el.parentNode; while(el.firstChild) p.insertBefore(el.firstChild, el); p.removeChild(el); })(mark);
+        // now refresh both lists
+        if (window.buildRefList) window.buildRefList();
+        mirrorRefList();
+      }
+      return;
+    }
+  });
+
+  // Expose mirror for other code if needed
+  window.mirrorRefListToDrawer = mirrorRefList;
+
+  // Update drawer list any time the main list changes
+  const refListEl = document.getElementById('refList');
+  if (refListEl && 'MutationObserver' in window){
+    const mo = new MutationObserver(()=> mirrorRefList());
+    mo.observe(refListEl, {childList:true, subtree:true});
+  }
+
+  // Initial sync
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ()=>{ if (window.buildRefList) window.buildRefList(); mirrorRefList(); syncRefsToggleLabel(); });
+  } else {
+    if (window.buildRefList) window.buildRefList(); mirrorRefList(); syncRefsToggleLabel();
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  function removeIfExists(id){
+    const n = document.getElementById(id);
+    if(n && n.parentNode) n.parentNode.removeChild(n);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ()=>{ removeIfExists('btnAddRef'); removeIfExists('btnToggleRefs'); });
+  }else{
+    removeIfExists('btnAddRef'); removeIfExists('btnToggleRefs');
+  }
+})();
+</script>
+
+</body>
+</html>
+
+<script>
+(document.getElementById('revShowMarkersBtn')||{}).onclick = ()=>{
+  document.body.classList.remove('rev-hl-off');
+};
+</script>
