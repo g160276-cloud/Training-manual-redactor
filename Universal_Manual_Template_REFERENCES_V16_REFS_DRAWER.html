@@ -90,6 +90,7 @@
     .drop-target{outline:2px dashed #5da9ff; background:rgba(93,169,255,.08)}
     .no-match{display:none; margin:10px 0; padding:10px 12px; border-radius:10px; border:1px dashed var(--line); color:var(--muted)}
     .inline-controls{display:flex; gap:8px; align-items:center}
+    #btnToc{display:inline-flex; align-items:center; gap:6px}
     /* Delete buttons: visible only in editing mode */
     .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
     .del:hover{border-color:#35519b}
@@ -101,6 +102,9 @@
       .toc-backdrop{content:""; position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:39}
       .toc-backdrop.show{display:block}
     }
+    body.toc-collapsed .wrap{grid-template-columns: var(--rail-w) 0 1fr}
+    body.toc-collapsed aside{width:0; padding:0; border:0; opacity:0; pointer-events:none; overflow:hidden}
+    body.toc-collapsed aside *{opacity:0; pointer-events:none}
     @media print{ aside{display:none} .wrap{grid-template-columns:1fr} body{background:white; color:black} .section{break-inside:avoid} .btn, .select, .del{display:none !important} }
     .editing .section{outline:1px dashed #35519b}
     /* Inline reference mark visible only on screen; subtle */
@@ -242,6 +246,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         <div class="bar">
           <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
+            <button class="btn" id="btnToc" type="button" aria-expanded="false" aria-controls="aside" title="Show or hide contents panel">☰ Contents</button>
             <button class="btn" id="btnAddTop" type="button" title="Add top-level section (new block)">+ Top-level</button>
             <button class="btn" id="btnToggleFilters" type="button" aria-expanded="true" title="Show/Hide filters">Filters</button>
           </div>
@@ -745,26 +750,61 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     });
 
     // UI toggles (TOC)
-    if(btnToc && aside && tocBackdrop){
+    const tocMediaQuery = window.matchMedia('(max-width: 1100px)');
+    let tocOpenState = tocMediaQuery.matches ? (aside ? aside.classList.contains('open') : false) : !document.body.classList.contains('toc-collapsed');
+
+    function applyTocState(open){
+      tocOpenState = !!open;
+      if(btnToc){
+        btnToc.setAttribute('aria-expanded', String(tocOpenState));
+      }
+      if(!aside){
+        if(tocBackdrop){
+          tocBackdrop.classList.remove('show');
+          tocBackdrop.setAttribute('aria-hidden', 'true');
+        }
+        return;
+      }
+      if(tocMediaQuery.matches){
+        document.body.classList.remove('toc-collapsed');
+        aside.classList.toggle('open', tocOpenState);
+        if(tocBackdrop){
+          tocBackdrop.classList.toggle('show', tocOpenState);
+          tocBackdrop.setAttribute('aria-hidden', String(!tocOpenState));
+        }
+      }else{
+        document.body.classList.toggle('toc-collapsed', !tocOpenState);
+        aside.classList.remove('open');
+        if(tocBackdrop){
+          tocBackdrop.classList.remove('show');
+          tocBackdrop.setAttribute('aria-hidden', 'true');
+        }
+      }
+    }
+
+    applyTocState(tocMediaQuery.matches ? false : true);
+
+    if(btnToc){
       btnToc.addEventListener('click', ()=>{
-        const open = !aside.classList.contains('open');
-        aside.classList.toggle('open', open);
-        tocBackdrop.classList.toggle('show', open);
-        btnToc.setAttribute('aria-expanded', String(open));
-        tocBackdrop.setAttribute('aria-hidden', String(!open));
+        applyTocState(!tocOpenState);
       });
+    }
+
+    if(tocBackdrop){
       tocBackdrop.addEventListener('click', ()=>{
-        aside.classList.remove('open');
-        tocBackdrop.classList.remove('show');
-        btnToc.setAttribute('aria-expanded', 'false');
-        tocBackdrop.setAttribute('aria-hidden', 'true');
+        if(tocMediaQuery.matches){
+          applyTocState(false);
+        }
       });
-    } else if(tocBackdrop){
-      tocBackdrop.addEventListener('click', ()=>{
-        aside.classList.remove('open');
-        tocBackdrop.classList.remove('show');
-        tocBackdrop.setAttribute('aria-hidden', 'true');
-      });
+    }
+
+    const handleTocMediaChange = (event)=>{
+      applyTocState(event.matches ? false : true);
+    };
+    if(tocMediaQuery.addEventListener){
+      tocMediaQuery.addEventListener('change', handleTocMediaChange);
+    }else if(tocMediaQuery.addListener){
+      tocMediaQuery.addListener(handleTocMediaChange);
     }
 
     function getState(){
