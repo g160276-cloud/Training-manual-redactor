@@ -1261,9 +1261,23 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     }
     byId('railEdit').addEventListener('click', ()=> setEditing(!isEditing));
     const railPrintBtn=byId('railPrint');
+    function openPrintDialog(){
+      try{
+        window.print();
+      }catch(err){
+        console.warn('window.print failed', err);
+        showToast('Print dialog could not open.');
+      }
+    }
     if(railPrintBtn){
       railPrintBtn.addEventListener('click', ()=>{
-        generatePrintSnapshot(true).finally(()=> window.print());
+        showToast('Preparing print view…', {duration:1600});
+        const result=generatePrintSnapshot(true);
+        if(result && typeof result.then==='function'){
+          result.catch(()=>{}).finally(()=> openPrintDialog());
+        }else{
+          openPrintDialog();
+        }
       });
     }
     byId('railLibrary').addEventListener('click', ()=> { window.scrollTo({top:0, behavior:'smooth'}); });
