@@ -227,8 +227,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       <button class="icon" id="railPrint" title="Print" type="button" aria-label="Print">🖨️</button>
       <button class="icon" id="railRevisions" title="Revisions" type="button" aria-label="Revisions">🕓</button>
       <button class="icon" id="railHidden" title="Hidden text" type="button" aria-label="Hidden text" style="font-size:20px;">🙈</button>
-<button class="icon" id="railRefs" title="References" type="button" aria-label="References" style="font-size:20px;">🔖</button>
-<button class="icon" id="railSettings" title="Settings" type="button" aria-label="Settings">⚙️</button>
+      <button class="icon" id="railRefs" title="References" type="button" aria-label="References" style="font-size:20px;">🔖</button>
     </nav>
 
     <aside id="aside">
@@ -241,7 +240,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     <main>
       <header>
         <div class="bar">
-          <button class="btn" id="btnToc" title="Toggle contents" type="button" aria-expanded="false">☰</button>
           <div class="title" data-sync-filename>Universal Manual Template — References V16 (Refs Drawer)</div>
           <div class="inline-controls">
             <button class="btn" id="btnAddTop" type="button" title="Add top-level section (new block)">+ Top-level</button>
@@ -270,7 +268,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       <div class="meta" id="meta">
         <span class="badge" id="metaLevels">Levels: 1, 2, 3</span>
         <span class="badge" id="metaRegs">Regulators: EASA + GCAA</span>
-        <span class="badge" id="metaSearch">Search: –</span>
       </div>
 
       <!-- === TOP-LEVEL SECTIONS === -->
@@ -443,6 +440,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const noMatch=byId('noMatch');
     const toc=byId('toc');
     const filtersEl=byId('filters');
+    const btnToc=byId('btnToc');
     const btnToggleFilters=byId('btnToggleFilters');
     const btnAddTop=byId('btnAddTop');
     const btnAddRef=byId('btnAddRef');
@@ -747,19 +745,27 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     });
 
     // UI toggles (TOC)
-    byId('btnToc').addEventListener('click', ()=>{
-      const open = !aside.classList.contains('open');
-      aside.classList.toggle('open', open);
-      tocBackdrop.classList.toggle('show', open);
-      byId('btnToc').setAttribute('aria-expanded', String(open));
-      tocBackdrop.setAttribute('aria-hidden', String(!open));
-    });
-    tocBackdrop.addEventListener('click', ()=>{
-      aside.classList.remove('open');
-      tocBackdrop.classList.remove('show');
-      byId('btnToc').setAttribute('aria-expanded', 'false');
-      tocBackdrop.setAttribute('aria-hidden', 'true');
-    });
+    if(btnToc && aside && tocBackdrop){
+      btnToc.addEventListener('click', ()=>{
+        const open = !aside.classList.contains('open');
+        aside.classList.toggle('open', open);
+        tocBackdrop.classList.toggle('show', open);
+        btnToc.setAttribute('aria-expanded', String(open));
+        tocBackdrop.setAttribute('aria-hidden', String(!open));
+      });
+      tocBackdrop.addEventListener('click', ()=>{
+        aside.classList.remove('open');
+        tocBackdrop.classList.remove('show');
+        btnToc.setAttribute('aria-expanded', 'false');
+        tocBackdrop.setAttribute('aria-hidden', 'true');
+      });
+    } else if(tocBackdrop){
+      tocBackdrop.addEventListener('click', ()=>{
+        aside.classList.remove('open');
+        tocBackdrop.classList.remove('show');
+        tocBackdrop.setAttribute('aria-hidden', 'true');
+      });
+    }
 
     function getState(){
       const levelChips=getLevelChips();
@@ -1022,11 +1028,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     }
     byId('railRevisions').addEventListener('click', ()=> { // Revisions panel opener
 (function(){ const d=document.getElementById('revDrawer'); if(d){ d.style.right='0'; if(window.renderRevList) renderRevList(); } })(); });
-    byId('railSettings').addEventListener('click', ()=> {
-      const collapsed = filtersEl.classList.toggle('collapsed');
-      btnToggleFilters.setAttribute('aria-expanded', String(!collapsed));
-      markDirty();
-    });
 
     // Top bar buttons
     btnToggleFilters.addEventListener('click', ()=>{
