@@ -95,6 +95,17 @@
     .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
     .del:hover{border-color:#35519b}
     .editing .del{display:inline-flex}
+    #printSnapshotSource{position:fixed;top:0;left:-200vw;width:900px;max-width:calc(100vw - 40px);padding:40px 48px;background:#fff;color:#0f172a;opacity:0;pointer-events:none;z-index:-1}
+    #printSnapshotSource .print-manual{background:#fff;color:#0f172a;font:16px/1.6 "Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:780px;margin:0 auto}
+    #printSnapshotSource .print-manual-title{margin:0 0 24px;font-size:26px;font-weight:600;color:#0b1120;text-align:center}
+    #printSnapshotSource .meta{display:none}
+    #printSnapshotSource .section{background:#fff;border:1px solid #dbe4ff;border-radius:16px;padding:18px 20px;margin:18px 0;box-shadow:none;color:#0f172a}
+    #printSnapshotSource .section h2{font-size:21px;margin:0 0 12px;color:#0b1120}
+    #printSnapshotSource .subsection{background:#f8faff;border-left:4px solid #94b6ff;border-radius:12px;padding:14px 16px;margin:14px 0 10px;color:#0f172a}
+    #printSnapshotSource .subsection h3{font-size:17px;margin:0 0 10px;color:#0b1120}
+    #printSnapshotSource .hiddenText{opacity:0.7}
+    #printSnapshotSource .ref{background:transparent;border-bottom:1px dotted #94b6ff}
+    #printSnapshotSource .print-empty{text-align:center;color:#64748b;font-size:15px;margin:40px 0}
     #printSnapshotHost{display:none;padding:32px 24px;background:#fff}
     #printSnapshotHost img{display:block;max-width:100%;height:auto;border-radius:12px;box-shadow:0 0 0 rgba(0,0,0,0)}
     #printSnapshotHost .print-status{font:14px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#4b5563;text-align:center;padding:120px 0}
@@ -324,6 +335,8 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
   <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
+  <div id="printSnapshotSource" aria-hidden="true"></div>
+
   <div id="printSnapshotHost" aria-hidden="true">
     <div class="print-status">Preparing print view…</div>
     <img id="printSnapshotImage" alt="Manual snapshot for PDF export" />
@@ -337,9 +350,9 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
     const byId=(id)=>document.getElementById(id);
 
-    const wrapEl=document.querySelector('.wrap');
     const mainEl=document.querySelector('main');
     const printHost=byId('printSnapshotHost');
+    const printSource=byId('printSnapshotSource');
     const printImg=byId('printSnapshotImage');
     const printStatus=printHost?printHost.querySelector('.print-status'):null;
     let printSnapshotDirty=true;
@@ -358,8 +371,51 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       });
     }
 
+    function pruneForPrint(root){
+      if(!root) return;
+      root.querySelectorAll('.no-match, .inline-controls').forEach(el=> el.remove());
+      root.querySelectorAll('button').forEach(el=> el.remove());
+      root.querySelectorAll('[contenteditable]').forEach(el=> el.removeAttribute('contenteditable'));
+      root.querySelectorAll('[draggable]').forEach(el=> el.removeAttribute('draggable'));
+      root.querySelectorAll('.drag-handle').forEach(el=> el.remove());
+      root.querySelectorAll('.search-focus').forEach(el=> el.classList.remove('search-focus'));
+      root.querySelectorAll('.revMarkerStart, .revMarkerEnd').forEach(el=> el.remove());
+      if(!document.body.classList.contains('print-hidden-on')){
+        root.querySelectorAll('.hiddenText').forEach(el=> el.remove());
+      }
+      root.querySelectorAll('.section').forEach(sec=>{
+        if(sec.style && sec.style.display==='none'){ sec.remove(); }
+      });
+    }
+
+    function preparePrintSource(){
+      if(!printSource || !mainEl) return null;
+      const manual=document.createElement('div');
+      manual.className='print-manual';
+      manual.setAttribute('role','document');
+      const headingText=(document.querySelector('.title[data-sync-filename]')?.textContent || document.title || '').trim();
+      if(headingText){
+        const heading=document.createElement('h1');
+        heading.className='print-manual-title';
+        heading.textContent=headingText;
+        manual.appendChild(heading);
+      }
+      const clone=mainEl.cloneNode(true);
+      pruneForPrint(clone);
+      manual.appendChild(clone);
+      if(!manual.querySelector('.section')){
+        const empty=document.createElement('p');
+        empty.className='print-empty';
+        empty.textContent='No sections available to print.';
+        manual.appendChild(empty);
+      }
+      printSource.innerHTML='';
+      printSource.appendChild(manual);
+      return manual;
+    }
+
     function schedulePrintSnapshot(){
-      if(!printHost) return;
+      if(!printHost || !printSource) return;
       printSnapshotDirty=true;
       if(printSnapshotTimer) return;
       printSnapshotTimer=setTimeout(()=>{
@@ -369,7 +425,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     }
 
     function generatePrintSnapshot(force){
-      if(!printHost) return Promise.resolve();
+      if(!printHost || !printSource) return Promise.resolve();
       if(!force && !printSnapshotDirty && printImg && printImg.dataset.ready==='1'){
         return Promise.resolve();
       }
@@ -387,7 +443,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           printSnapshotPromise=null;
           return;
         }
-        const target=wrapEl||document.querySelector('.wrap');
+        const target=preparePrintSource();
         if(!target){
           printSnapshotPromise=null;
           return;
@@ -400,7 +456,11 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           scale: Math.min(2, Math.max(1.5, window.devicePixelRatio||1.5)),
           backgroundColor: '#ffffff',
           useCORS: true,
-          logging: false
+          logging: false,
+          width: target.scrollWidth,
+          height: target.scrollHeight,
+          windowWidth: target.scrollWidth + 120,
+          windowHeight: target.scrollHeight + 120
         }).then(canvas=>{
           const url=canvas.toDataURL('image/png');
           if(printImg){
