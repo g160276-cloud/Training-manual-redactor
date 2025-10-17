@@ -34,6 +34,7 @@
       }
     })();
   </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     :root{ --bg:#0b1020; --panel:#121a33; --ink:#e7ecff; --muted:#a7b0d6; --line:#22305a; --accent:#5da9ff; --shadow:0 8px 24px rgba(0,0,0,.35); --aside-w:260px; --rail-w:64px }
     *{box-sizing:border-box}
@@ -94,7 +95,16 @@
     .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
     .del:hover{border-color:#35519b}
     .editing .del{display:inline-flex}
-    @media print{ aside{display:none} .wrap{grid-template-columns:1fr} body{background:white; color:black} .section{break-inside:avoid} .btn, .select, .del{display:none !important} }
+    #printSnapshotHost{display:none;padding:32px 24px;background:#fff}
+    #printSnapshotHost img{display:block;max-width:100%;height:auto;border-radius:12px;box-shadow:0 0 0 rgba(0,0,0,0)}
+    #printSnapshotHost .print-status{font:14px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#4b5563;text-align:center;padding:120px 0}
+    @media print{
+      body{background:white !important;color:black !important}
+      .wrap,.search-backdrop,.search-drawer,.toast-container{display:none !important}
+      #printSnapshotHost{display:block !important}
+      .section{break-inside:avoid}
+      .btn,.select,.del{display:none !important}
+    }
     .editing .section{outline:1px dashed #35519b}
     /* Inline reference mark visible only on screen; subtle */
     .ref{background:rgba(93,169,255,.15); border-bottom:1px dashed #5da9ff; position:relative; cursor:help}
@@ -314,6 +324,11 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
   <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
+  <div id="printSnapshotHost" aria-hidden="true">
+    <div class="print-status">Preparing print view…</div>
+    <img id="printSnapshotImage" alt="Manual snapshot for PDF export" />
+  </div>
+
   <script>
   'use strict';
   (function(){
@@ -322,7 +337,98 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
     const byId=(id)=>document.getElementById(id);
 
+    const wrapEl=document.querySelector('.wrap');
     const mainEl=document.querySelector('main');
+    const printHost=byId('printSnapshotHost');
+    const printImg=byId('printSnapshotImage');
+    const printStatus=printHost?printHost.querySelector('.print-status'):null;
+    let printSnapshotDirty=true;
+    let printSnapshotTimer=null;
+    let printSnapshotPromise=null;
+
+    function waitForHtml2Canvas(timeoutMs=5000){
+      return new Promise((resolve)=>{
+        if(typeof window.html2canvas==='function'){ resolve(true); return; }
+        const start=Date.now();
+        (function check(){
+          if(typeof window.html2canvas==='function'){ resolve(true); return; }
+          if(Date.now()-start>=timeoutMs){ resolve(false); return; }
+          setTimeout(check, 120);
+        })();
+      });
+    }
+
+    function schedulePrintSnapshot(){
+      if(!printHost) return;
+      printSnapshotDirty=true;
+      if(printSnapshotTimer) return;
+      printSnapshotTimer=setTimeout(()=>{
+        printSnapshotTimer=null;
+        generatePrintSnapshot();
+      }, 900);
+    }
+
+    function generatePrintSnapshot(force){
+      if(!printHost) return Promise.resolve();
+      if(!force && !printSnapshotDirty && printImg && printImg.dataset.ready==='1'){
+        return Promise.resolve();
+      }
+      if(printSnapshotPromise) return printSnapshotPromise;
+      if(printSnapshotTimer){
+        clearTimeout(printSnapshotTimer);
+        printSnapshotTimer=null;
+      }
+      printSnapshotPromise=waitForHtml2Canvas().then((ready)=>{
+        if(!ready){
+          if(printStatus){
+            printStatus.textContent='Print helper is still loading…';
+            printStatus.style.display='block';
+          }
+          printSnapshotPromise=null;
+          return;
+        }
+        const target=wrapEl||document.querySelector('.wrap');
+        if(!target){
+          printSnapshotPromise=null;
+          return;
+        }
+        if(printStatus){
+          printStatus.textContent='Preparing print-friendly snapshot…';
+          printStatus.style.display='block';
+        }
+        return window.html2canvas(target, {
+          scale: Math.min(2, Math.max(1.5, window.devicePixelRatio||1.5)),
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false
+        }).then(canvas=>{
+          const url=canvas.toDataURL('image/png');
+          if(printImg){
+            printImg.src=url;
+            printImg.dataset.ready='1';
+            printImg.style.display='block';
+          }
+          if(printStatus){
+            printStatus.textContent='';
+            printStatus.style.display='none';
+          }
+          printSnapshotDirty=false;
+        }).catch(err=>{
+          printSnapshotDirty=true;
+          if(printStatus){
+            printStatus.textContent='Unable to prepare print snapshot.';
+            printStatus.style.display='block';
+          }
+          console.warn('Print snapshot failed', err);
+        }).finally(()=>{
+          printSnapshotPromise=null;
+        });
+      });
+      return printSnapshotPromise;
+    }
+
+    window.prepareManualPrint = function(){ return generatePrintSnapshot(true); };
+    window.requestPrintSnapshotUpdate = schedulePrintSnapshot;
     const AUTO_SAVE_KEY='um_auto_save_v1';
     const AUTO_SAVE_INTERVAL=15000;
     let autoSaveTimer=null;
@@ -398,7 +504,10 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       }, AUTO_SAVE_INTERVAL);
     }
 
-    function markDirty(){ isDirty=true; }
+    function markDirty(){
+      isDirty=true;
+      schedulePrintSnapshot();
+    }
     window.flagManualChange = markDirty;
 
     function purgeLegacyElements(){
@@ -435,6 +544,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       const stripped=purgeLegacyElements();
       autoSaveMetaPending=data.meta||null;
       isDirty=false;
+      schedulePrintSnapshot();
       if(stripped){
         isDirty=true;
         queueMicrotask(()=> performAutoSave('silent'));
@@ -795,6 +905,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       buildRefList();
       ensureDeleteButtons();
       refreshSearchIfActive();
+      schedulePrintSnapshot();
     }
 
     // References —— create, list, delete
@@ -860,10 +971,11 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
             <button class="del" data-refid="${id}" type="button" title="Remove reference">🗑️</button>
           </div>
         `;
-        refList.appendChild(item);
-      });
-      refreshSearchIfActive();
-    }
+      refList.appendChild(item);
+    });
+    refreshSearchIfActive();
+    schedulePrintSnapshot();
+  }
 
     function buildToc(){
       const state=getState();
@@ -974,6 +1086,12 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       if(chip) toggleChip(chip);
     });
 
+    if(printHost){
+      window.addEventListener('resize', ()=> schedulePrintSnapshot());
+      window.addEventListener('beforeprint', ()=>{ generatePrintSnapshot(true); });
+      window.addEventListener('afterprint', ()=>{ if(printStatus) printStatus.textContent=''; });
+    }
+
     // Editing mode
     let isEditing=false;
     window.isEditing = isEditing;
@@ -991,9 +1109,15 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       applyEditable(document);
       btnAddTop.disabled = !isEditing;
       ensureDeleteButtons();
+      schedulePrintSnapshot();
     }
     byId('railEdit').addEventListener('click', ()=> setEditing(!isEditing));
-    byId('railPrint').addEventListener('click', ()=> window.print());
+    const railPrintBtn=byId('railPrint');
+    if(railPrintBtn){
+      railPrintBtn.addEventListener('click', ()=>{
+        generatePrintSnapshot(true).finally(()=> window.print());
+      });
+    }
     byId('railLibrary').addEventListener('click', ()=> { window.scrollTo({top:0, behavior:'smooth'}); });
     if(btnSaveAs){
       btnSaveAs.addEventListener('click', ()=>{
@@ -1293,6 +1417,7 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     window.addEventListener('beforeunload', ()=>{
       if(isDirty) performAutoSave('silent');
     });
+    schedulePrintSnapshot();
   })();
   </script>
 
