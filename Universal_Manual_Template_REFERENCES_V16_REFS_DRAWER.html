@@ -95,7 +95,8 @@
     .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
     .del:hover{border-color:#35519b}
     .editing .del{display:inline-flex}
-    #printSnapshotSource{position:fixed;top:0;left:-200vw;width:900px;max-width:calc(100vw - 40px);padding:40px 48px;background:#fff;color:#0f172a;opacity:0;pointer-events:none;z-index:-1}
+    #printSnapshotSource{position:fixed;top:0;left:0;width:940px;max-width:calc(100vw - 40px);padding:40px 48px;background:#fff;color:#0f172a;opacity:0;pointer-events:none;z-index:-1;visibility:hidden;overflow:hidden}
+    #printSnapshotSource.capturing{opacity:.01;visibility:visible;z-index:-1}
     #printSnapshotSource .print-manual{background:#fff;color:#0f172a;font:16px/1.6 "Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:780px;margin:0 auto}
     #printSnapshotSource .print-manual-title{margin:0 0 24px;font-size:26px;font-weight:600;color:#0b1120;text-align:center}
     #printSnapshotSource .meta{display:none}
@@ -388,7 +389,54 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       });
     }
 
-    function preparePrintSource(){
+    function waitForImages(root){
+      const imgs=root?Array.from(root.querySelectorAll('img')):[];
+      if(!imgs.length) return Promise.resolve();
+      return Promise.all(imgs.map(img=>{
+        if(img.complete && img.naturalWidth>0) return Promise.resolve();
+        return new Promise(resolve=>{
+          img.addEventListener('load', resolve, {once:true});
+          img.addEventListener('error', resolve, {once:true});
+        });
+      }));
+    }
+
+    function inlineCloneImages(root){
+      const imgs=root?Array.from(root.querySelectorAll('img[src]')):[];
+      if(!imgs.length) return Promise.resolve();
+      if(typeof window.fetch!=='function'){ return waitForImages(root); }
+      const tasks=imgs.map(img=>{
+        const src=(img.getAttribute('src')||'').trim();
+        if(!src || src.startsWith('data:') || src.startsWith('blob:')) return Promise.resolve();
+        let url;
+        try{ url=new URL(src, window.location.href); }
+        catch(e){ img.removeAttribute('src'); return Promise.resolve(); }
+        if(url.protocol==='file:'){
+          img.removeAttribute('srcset');
+          img.removeAttribute('src');
+          return Promise.resolve();
+        }
+        return fetch(url.href,{mode:'cors'}).then(resp=>{
+          if(!resp.ok) throw new Error('Failed to fetch image');
+          return resp.blob();
+        }).then(blob=> new Promise((resolve,reject)=>{
+          const reader=new FileReader();
+          reader.onload=()=>{ img.src=reader.result; resolve(); };
+          reader.onerror=()=>{ img.removeAttribute('src'); resolve(); };
+          reader.readAsDataURL(blob);
+        })).catch(()=>{
+          img.removeAttribute('srcset');
+          img.removeAttribute('src');
+        });
+      });
+      return Promise.all(tasks).then(()=> waitForImages(root));
+    }
+
+    function nextFrame(){
+      return new Promise(resolve=> requestAnimationFrame(()=> resolve()));
+    }
+
+    async function preparePrintSource(){
       if(!printSource || !mainEl) return null;
       const manual=document.createElement('div');
       manual.className='print-manual';
@@ -411,6 +459,10 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
       }
       printSource.innerHTML='';
       printSource.appendChild(manual);
+      printSource.classList.add('capturing');
+      await inlineCloneImages(manual);
+      await nextFrame();
+      await nextFrame();
       return manual;
     }
 
@@ -443,45 +495,81 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
           printSnapshotPromise=null;
           return;
         }
-        const target=preparePrintSource();
-        if(!target){
-          printSnapshotPromise=null;
-          return;
-        }
-        if(printStatus){
-          printStatus.textContent='Preparing print-friendly snapshot…';
-          printStatus.style.display='block';
-        }
-        return window.html2canvas(target, {
-          scale: Math.min(2, Math.max(1.5, window.devicePixelRatio||1.5)),
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-          width: target.scrollWidth,
-          height: target.scrollHeight,
-          windowWidth: target.scrollWidth + 120,
-          windowHeight: target.scrollHeight + 120
-        }).then(canvas=>{
-          const url=canvas.toDataURL('image/png');
-          if(printImg){
-            printImg.src=url;
-            printImg.dataset.ready='1';
-            printImg.style.display='block';
+        return preparePrintSource().then(target=>{
+          if(!target){
+            printSnapshotPromise=null;
+            if(printSource){
+              printSource.classList.remove('capturing');
+            }
+            return;
+          }
+          const captureEl=printSource;
+          const width=Math.max(1, target.scrollWidth, target.offsetWidth, target.clientWidth);
+          const height=Math.max(1, target.scrollHeight, target.offsetHeight, target.clientHeight);
+          const captureWidth=Math.max(width+96, captureEl.scrollWidth, captureEl.offsetWidth, captureEl.clientWidth);
+          const captureHeight=Math.max(height+96, captureEl.scrollHeight, captureEl.offsetHeight, captureEl.clientHeight);
+          if(width===0 || height===0){
+            printSnapshotDirty=true;
+            if(printStatus){
+              printStatus.textContent='Unable to prepare print snapshot.';
+              printStatus.style.display='block';
+            }
+            printSnapshotPromise=null;
+            if(printSource){
+              printSource.classList.remove('capturing');
+            }
+            return;
           }
           if(printStatus){
-            printStatus.textContent='';
-            printStatus.style.display='none';
+            printStatus.textContent='Preparing print-friendly snapshot…';
+            printStatus.style.display='block';
           }
-          printSnapshotDirty=false;
+          return window.html2canvas(captureEl, {
+            scale: Math.min(2, Math.max(1.5, window.devicePixelRatio||1.5)),
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            logging: false,
+            width: captureWidth,
+            height: captureHeight,
+            windowWidth: captureWidth + 120,
+            windowHeight: captureHeight + 120,
+            removeContainer: true
+          }).then(canvas=>{
+            const url=canvas.toDataURL('image/png');
+            if(printImg){
+              printImg.src=url;
+              printImg.dataset.ready='1';
+              printImg.style.display='block';
+            }
+            if(printStatus){
+              printStatus.textContent='';
+              printStatus.style.display='none';
+            }
+            printSnapshotDirty=false;
+          }).catch(err=>{
+            printSnapshotDirty=true;
+            if(printStatus){
+              printStatus.textContent='Unable to prepare print snapshot.';
+              printStatus.style.display='block';
+            }
+            console.warn('Print snapshot failed', err);
+          }).finally(()=>{
+            printSnapshotPromise=null;
+            if(printSource){
+              printSource.classList.remove('capturing');
+            }
+          });
         }).catch(err=>{
           printSnapshotDirty=true;
+          printSnapshotPromise=null;
+          if(printSource){
+            printSource.classList.remove('capturing');
+          }
           if(printStatus){
             printStatus.textContent='Unable to prepare print snapshot.';
             printStatus.style.display='block';
           }
-          console.warn('Print snapshot failed', err);
-        }).finally(()=>{
-          printSnapshotPromise=null;
+          console.warn('Print source preparation failed', err);
         });
       });
       return printSnapshotPromise;
