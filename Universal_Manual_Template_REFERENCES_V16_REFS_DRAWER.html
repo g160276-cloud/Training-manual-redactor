@@ -94,13 +94,6 @@
     .del{padding:2px 6px; border-radius:8px; font-size:12px; line-height:1; border:1px solid var(--line); background:#0d1630; color:var(--ink); cursor:pointer; display:none}
     .del:hover{border-color:#35519b}
     .editing .del{display:inline-flex}
-    @media (max-width: 1100px){
-      .wrap{grid-template-columns: var(--rail-w) 1fr}
-      aside{position:fixed; left:var(--rail-w); top:0; bottom:0; width:min(84vw,310px); transform:translateX(-100%); transition:.2s ease; z-index:40; box-shadow:0 10px 40px rgba(0,0,0,.5)}
-      aside.open{transform:translateX(0)}
-      .toc-backdrop{content:""; position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:39}
-      .toc-backdrop.show{display:block}
-    }
     @media print{ aside{display:none} .wrap{grid-template-columns:1fr} body{background:white; color:black} .section{break-inside:avoid} .btn, .select, .del{display:none !important} }
     .editing .section{outline:1px dashed #35519b}
     /* Inline reference mark visible only on screen; subtle */
@@ -321,8 +314,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
 
   <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
-  <div class="toc-backdrop" id="tocBackdrop" aria-hidden="true"></div>
-
   <script>
   'use strict';
   (function(){
@@ -433,7 +424,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
     tryRestoreAutoSave();
 
     const aside=byId('aside');
-    const tocBackdrop=byId('tocBackdrop');
     const metaLevels=byId('metaLevels');
     const metaRegs=byId('metaRegs');
     const metaSearch=byId('metaSearch');
@@ -743,29 +733,6 @@ aside h3 + #refList, aside h3:has(+ #refList) { display: none !important; }
         lastRange = sel.getRangeAt(0).cloneRange();
       }
     });
-
-    // UI toggles (TOC)
-    if(btnToc && aside && tocBackdrop){
-      btnToc.addEventListener('click', ()=>{
-        const open = !aside.classList.contains('open');
-        aside.classList.toggle('open', open);
-        tocBackdrop.classList.toggle('show', open);
-        btnToc.setAttribute('aria-expanded', String(open));
-        tocBackdrop.setAttribute('aria-hidden', String(!open));
-      });
-      tocBackdrop.addEventListener('click', ()=>{
-        aside.classList.remove('open');
-        tocBackdrop.classList.remove('show');
-        btnToc.setAttribute('aria-expanded', 'false');
-        tocBackdrop.setAttribute('aria-hidden', 'true');
-      });
-    } else if(tocBackdrop){
-      tocBackdrop.addEventListener('click', ()=>{
-        aside.classList.remove('open');
-        tocBackdrop.classList.remove('show');
-        tocBackdrop.setAttribute('aria-hidden', 'true');
-      });
-    }
 
     function getState(){
       const levelChips=getLevelChips();
